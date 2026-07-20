@@ -96,6 +96,9 @@ export const api = {
   adminLogin: (loginId: string, password: string) =>
     callFunction<{ success: true; token: string }>('admin-login', { body: { loginId, password } }),
 
+  setupAdmin: (password: string) =>
+    callFunction<{ success: true }>('setup-admin', { body: { loginId: 'admin', password } }),
+
   adminListCohorts: (adminToken: string) =>
     callFunction<{ cohorts: Cohort[] }>('admin-list-cohorts', { adminToken, method: 'GET' }),
 
