@@ -7,10 +7,24 @@
 ## 1. 프로젝트 위치 / 저장소
 
 ```text
-로컬 경로: D:\workspace\claude\CK
+현재 로컬 경로(macOS): /Users/matthewy.jeong/Vibe Coding/CBCK_Bible-Study-main
+과거 작업 경로(참고):  D:\workspace\claude\CK
 GitHub:    https://github.com/YeansooJeong/CBCK_Bible-Study.git (origin, main 브랜치)
 배포 URL:  https://YeansooJeong.github.io/CBCK_Bible-Study/  (GitHub Pages, 확인 필요 — 8-1 참조)
 ```
+
+2026-07-20 현재 `main` 최신 구현 커밋은 아래와 같다.
+
+```text
+4e3b84e feat: add phase two problem creator
+a0223a3 feat: redesign student learning experience
+c9ed195 fix: pass Supabase env vars into the GitHub Pages build
+```
+
+- `4e3b84e`까지 GitHub `origin/main` 푸시 완료 및 로컬/원격 커밋 일치 확인.
+- 작업 폴더의 `benchmark/`, `.DS_Store`, `.pnpm-store/`, `pnpm-lock.yaml`은 의도적으로 커밋하지 않은 상태다.
+  `benchmark/`는 Phase 1·2 참고 산출물이므로 필요 여부를 확인한 뒤 별도 커밋할 것. 나머지는 삭제 또는
+  `.gitignore` 반영 여부를 결정할 것.
 
 ## 2. Supabase 프로젝트
 
@@ -53,6 +67,8 @@ Region:      ap-northeast-2 (Seoul)
 | 8 | 프로젝트·문제 CRUD | ✅ (백엔드+프론트엔드, 브라우저 실제 테스트 완료) |
 | 9 | CSV 업로드 | ✅ (백엔드+프론트엔드, 3가지 유형 모두 브라우저 테스트 완료) |
 | 10 | 퀴즈 세션 및 자동채점 | ✅ (백엔드+프론트엔드, 카드형 풀이+채점+기록 브라우저 테스트 완료) |
+| UI Phase 1 | 학습 대시보드 벤치마크 적용 | ✅ (`a0223a3`, 실데이터 홈+카드형 학습+프로젝트 UI) |
+| UI Phase 2 | 새 문제 만들기 페이지 | ✅ (`4e3b84e`, 실제 API 저장+실시간 미리보기+임시저장) |
 
 기획서 9장의 핵심 로드맵은 전부 완료된 상태. 남은 건 다듬기와 명시된 미해결 이슈들(7장, 8장 참조).
 
@@ -122,8 +138,9 @@ Region:      ap-northeast-2 (Seoul)
 | `/` | `HomePage` | 랜딩 (학생 로그인 / 관리자 링크) |
 | `/login` | `StudentAuthPage` | 전화번호 확인 → 로그인 또는 최초인증 분기 |
 | `/home` | `StudentHomePage` | 퀴즈 시작/풀이(카드형)/결과/최근 기록, 프로젝트 이동 |
-| `/projects` | `ProjectsPage` | 프로젝트 목록/생성 |
+| `/projects` | `ProjectsPage` | 내 프로젝트 목록/생성 (`?scope=shared`이면 공유받은 프로젝트) |
 | `/projects/:projectId` | `ProjectDetailPage` | 문제 등록(유형별 폼)/CSV 업로드/목록/공유설정/삭제 |
+| `/problems/new` | `NewProblemPage` | Phase 2 새 문제 작성, 실시간 미리보기, 임시저장, 실제 API 저장 |
 | `/admin/login` | `AdminLoginPage` | 관리자 로그인 (ID 자유 입력) + 최초 관리자 생성(ID 고정 `admin`) 토글 |
 | `/admin` | `AdminDashboardPage` | 기수/학생 등록·목록 |
 
@@ -134,9 +151,51 @@ Region:      ap-northeast-2 (Seoul)
 - `src/lib/supabaseClient.ts`: 존재하지만 현재 실제로 쓰이는 곳은 없음 (모든 데이터 접근이 Edge Function
   경유). 나중에 필요 없으면 정리 대상.
 
+### 4-4. UI Phase 1·2 구현 현황 (2026-07-20 추가)
+
+#### Phase 1 — 학습 대시보드
+
+- 공통 학생 레이아웃 `src/components/StudentShell.tsx` 추가: 브랜드, 홈/학습/내 문제함/공유 문제 내비게이션,
+  사용자 표시, 로그아웃.
+- `StudentHomePage`를 벤치마크 디자인으로 전면 교체. 데모 상수 대신 `quizHistory`와 `listProjects`를 사용한다.
+- 이번 주 푼 문제, 정답률, 학습일 기준 진행률(주 5일), 연속 학습일을 클라이언트에서 계산한다.
+- 홈의 학습 모달에서 전체 문제 또는 프로젝트를 선택하고 5/10/20문제를 출제할 수 있다.
+- 객관식·단답형·성경문제를 한 화면에 한 문제씩 표시하고 `submitAnswer`로 즉시 채점한다.
+- 풀이 완료 시 `finishQuizSession` 결과를 보여주고 기록을 다시 불러온다.
+- 프로젝트 목록/상세 화면에도 세이지·골드 디자인 토큰과 반응형 레이아웃을 적용했다.
+- 디자인 토큰과 Phase 1·2 CSS는 현재 `src/index.css` 한 파일에 있다. 기능은 정상이나 파일이 커졌으므로
+  후속 단계에서 `styles/` 단위로 분리하는 것이 유지보수에 유리하다.
+
+#### Phase 2 — 새 문제 만들기
+
+- 라우트: `/#/problems/new` (`HashRouter`이므로 실제 URL에는 `#` 포함).
+- `NewProblemPage.tsx`에서 객관식/단답형/성경문제를 모두 작성할 수 있다.
+- 유형별 입력값, 질문, 레퍼런스, 프로젝트, 문제 공유 범위를 우측 카드에서 실시간 미리보기한다.
+- 레퍼런스 `ref_course`, `ref_session`, `ref_location`은 UI에서 모두 필수로 검증한다.
+- 성경문제 정답은 `성경책;장;절`, 객관식 정답은 현재 DB 정책에 맞춰 `1`~`4` 문자열로 저장한다.
+- 본인 소유 프로젝트만 저장 대상에 표시하고 `api.createProblem()`으로 실제 저장한다.
+- 저장 성공 후 같은 프로젝트에 연속 등록하거나 프로젝트 상세로 이동할 수 있다.
+- 임시저장은 `localStorage`의 `cbck-problem-draft` 키를 사용하며 실제 저장 성공 시 제거한다.
+- CSV 버튼은 선택한 프로젝트의 기존 상세 화면(CSV 업로드 영역)으로 연결한다.
+- 선택 사용자 공유는 필요한 사용자 검색/선택 API와 create 시점의 `sharedUserIds` 계약이 없어 비활성 안내로
+  표시한다. 현재 실제 저장 가능한 문제 공유 범위는 `private`와 `all`이다.
+- 프로젝트가 하나도 없으면 작성 폼 대신 프로젝트 생성 페이지로 안내한다.
+
+#### 최신 검증 결과
+
+- `pnpm run build` 기준 TypeScript + Vite 프로덕션 빌드 성공.
+- Phase 1 변경 파일과 Phase 2 관련 파일 대상 ESLint 통과.
+- `git diff --check` 통과.
+- 전체 저장소 ESLint는 기존 `benchmark` 데모 소스, 관리자 화면의 effect 패턴, 일부 Supabase 함수의
+  `any` 타입 때문에 아직 실패한다. 새 Phase 1·2 코드 자체의 린트 오류는 없다.
+
 ## 5. 로컬 개발 환경 메모
 
-- `npm run dev` / `npm run build` 정상 동작 확인됨.
+- `npm run dev` / `npm run build` 또는 `pnpm run dev` / `pnpm run build` 사용 가능. 현재 macOS Codex 작업
+  환경에서는 기본 PATH에 Node/npm이 없어서 번들 런타임을 사용해 검증했다. 사용자의 일반 터미널에는
+  Homebrew가 설치되었고 `/opt/homebrew/bin/gh`로 GitHub 인증이 완료돼 있다.
+- 이 작업 중 `pnpm install`로 생성된 `pnpm-lock.yaml`과 `.pnpm-store/`는 커밋하지 않았다. 저장소의 기준
+  패키지 매니저는 기존 `package-lock.json`을 따라 npm으로 유지할지, pnpm으로 전환할지 먼저 결정할 것.
 - `vite.config.ts`의 `base: '/CBCK_Bible-Study/'` 때문에 dev 서버도 `http://localhost:PORT/CBCK_Bible-Study/`
   경로로 열어야 화면이 뜸 (루트 `/`는 404).
 - 이 저장소 상위 폴더(`D:\workspace\claude\.claude\launch.json`)에 dev 서버 프리뷰 설정이 있음
@@ -168,8 +227,9 @@ Region:      ap-northeast-2 (Seoul)
    가시성 필터도 `selected` 공유를 반영하지 않음 (소유자 본인 것 + `all` 공유만 퀴즈 대상). 지금 UI는
    `private`/`all`만 선택 가능.
 3. **`src/lib/supabaseClient.ts` 미사용**: 정리하거나, 나중에 실시간 기능 붙일 때 활용.
-4. **GitHub Pages 실제 배포 상태 미확인**: 워크플로우 파일과 이후 여러 커밋이 push됐지만, Actions 실행 로그나
-   실제 배포 URL 응답을 직접 확인한 적이 없음 (`gh` CLI 없는 환경에서 작업). **다음 작업자가 가장 먼저 할 일**:
+4. **GitHub Pages 실제 배포 상태 미확인**: 워크플로우 파일과 Phase 1·2 커밋이 push됐지만, Actions 실행 로그나
+   실제 배포 URL의 최신 화면 반영을 이 작업에서 확인하지 않았다. GitHub CLI는 현재 설치·인증 완료 상태다.
+   **다음 작업자가 가장 먼저 할 일**:
    `https://github.com/YeansooJeong/CBCK_Bible-Study/actions`에서 워크플로우 성공 여부 확인, 안 됐으면
    Settings → Pages → Source가 "GitHub Actions"로 되어 있는지 확인.
 5. **비밀번호/관리자 계정 찾기(recovery) 플로우 없음**: 학생이 비밀번호를 잊으면 admin이 DB를 직접 고치는
@@ -180,11 +240,26 @@ Region:      ap-northeast-2 (Seoul)
    총문제/정답/점수만 반환.
 7. **CSV 파싱이 매우 단순함**: `ProjectDetailPage.tsx`의 `parseCsv()`가 쉼표 기준 split이라, 값 안에 쉼표가
    포함된 경우(따옴표 이스케이프)를 제대로 처리 못할 수 있음. 실사용 전 더 견고한 CSV 파서로 교체 고려.
+8. **홈 통계 정의가 임시 규칙임**: 주간 진행률은 서버 목표값이 아니라 클라이언트에서 `학습한 고유 일수 × 20%`
+   (주 5일 목표)로 계산한다. 정식 목표 설정 기능이 필요하면 사용자별 목표 컬럼/설정 API를 추가해야 한다.
+9. **이어하기가 실제 세션 복구는 아님**: 홈 문구는 최근 학습 존재 여부를 반영하지만, 중단한 세션의 문제 순서와
+   답안을 복원하지 않는다. 현재 학습 시작은 항상 새 `quiz_session`을 생성한다.
+10. **완료 시점 필드 없음**: `quiz_sessions`에는 `started_at`만 있고 `finished_at/status`가 없다. 시작 후 이탈한
+    세션도 기록과 통계에 포함될 수 있으므로 완료 상태를 명시하는 마이그레이션을 권장한다.
+11. **정답 피드백 제한**: `submit-answer`는 `isCorrect`와 `matchScore`만 반환한다. 오답 시 작성자가 입력한 대표
+    정답 자체를 보여주려면 소유권/노출 정책을 검토한 뒤 API 응답을 확장해야 한다.
+12. **대시보드 조회 효율**: 홈은 `quizHistory`와 `listProjects`를 병렬 호출하지만 프로젝트별 문제 수·숙달률·최근
+    학습 시각은 제공하지 않는다. 추후 `dashboard-summary` 전용 Edge Function을 두는 편이 좋다.
+13. **스타일 파일 비대화**: `src/index.css`에 Tailwind 테마, Phase 1, 프로젝트 관리, Phase 2 스타일이 함께 있다.
+    기능 안정화 후 `student-shell.css`, `dashboard.css`, `problem-creator.css` 등으로 분리 권장.
+14. **새 문제 임시저장 범위**: `localStorage` 초안 키가 사용자 ID를 포함하지 않아 같은 브라우저에서 다른 사용자가
+    로그인하면 이전 사용자의 초안이 보일 수 있다. `cbck-problem-draft:${userId}` 형태로 변경하거나 서버 초안 테이블을
+    구현해야 한다.
 
 ## 8. 다음 작업 (우선순위 순)
 
 ### 8-1. GitHub Pages 배포 상태 확인 (제일 먼저)
-Actions 탭에서 최신 워크플로우 실행 결과 확인 → 실패 시 원인 파악 후 수정.
+`gh run list --limit 10`과 배포 URL로 최신 `4e3b84e` 반영 여부 확인 → 실패 시 원인 파악 후 수정.
 
 ### 8-2. 퀴즈 레퍼런스 범위 선택 + 취약 구간 피드백 (기획서 7장 완성)
 - `start-quiz-session`에 `refCourse`/`refSession` 필터 파라미터 추가.
@@ -192,15 +267,25 @@ Actions 탭에서 최신 워크플로우 실행 결과 확인 → 실패 시 원
 - 프론트엔드: 퀴즈 시작 전 범위 선택 UI, 결과 화면에 취약 구간 표시.
 
 ### 8-3. 공유 대상 선택(selected) UI + 퀴즈 가시성 반영
-- 프로젝트/문제 상세 화면에 학생 목록에서 공유 대상을 고르는 UI 추가 (백엔드 파라미터는 이미 있음).
+- 공유 가능한 학생 검색/목록 Edge Function 추가(실명 노출 정책 주의).
+- 프로젝트/문제 상세 및 `/problems/new`에 공유 대상 선택 UI 추가.
+- `create-problem`에도 `sharedUserIds` 저장 처리를 추가. 현재 `update-project`/`update-problem`만 해당 파라미터를 받는다.
 - `start-quiz-session`의 가시성 필터에 `selected` 케이스 추가.
 
-### 8-4. 마무리 다듬기
+### 8-4. 학습 세션·대시보드 데이터 보강
+- `quiz_sessions`에 `status`, `finished_at` 추가 후 미완료 세션을 통계에서 제외.
+- 중단 세션 복구가 필요하면 세션 문제 순서를 별도 저장하고 이어하기 API 추가.
+- 프로젝트별 문제 수/최근 학습/숙달률과 주간 통계를 반환하는 `dashboard-summary` 함수 검토.
+- 오답 결과에서 대표 정답 노출 여부와 권한 정책 확정.
+
+### 8-5. 마무리 다듬기
 - rate limiting, CSV 파서 견고화, `access_audit_log` 기록, 비밀번호 찾기 플로우 등 7장의 나머지 항목은
   실사용 배포 전 우선순위를 사용자와 협의해서 결정할 것 (기획서에 명시된 필수 요구사항은 아님).
+- 사용자별 임시저장 키 분리, `src/index.css` 분리, 전체 저장소 ESLint 정상화도 함께 진행 권장.
 
 ## 9. 변경 이력 (이 문서)
 
 | 날짜 | 내용 |
 |---|---|
 | 2026-07-20 | 최초 인수인계 문서 작성 (GitHub Pages 설정 중단 시점) → 전체 재작성(Pages 배포, Tailwind, Supabase 연결, 인증 Edge Function, 관리자 기능, 프로젝트·문제 CRUD 완료 반영) → CSV 업로드/퀴즈 세션/자동채점(로드맵 9, 10번) 구현 완료, 배포 및 브라우저 실제 검증 반영. 관리자 로그인 ID 하드코딩 버그 발견 및 수정(실제 관리자 ID로 로그인 가능하도록 복원), CSV 업로드 UI의 블로킹 alert()를 인라인 메시지로 교체. 문서를 하나로 통합 정리
+| 2026-07-20 | UI Phase 1(`a0223a3`) 학습 대시보드·카드형 풀이·프로젝트 화면 개편과 UI Phase 2(`4e3b84e`) 새 문제 작성·실시간 미리보기·임시저장·실제 API 저장 구현 상태 반영. 현재 macOS 경로, GitHub 인증/푸시 상태, 최신 검증 결과, 세션/통계/선택 공유/임시저장/스타일 구조 보완점 및 다음 우선순위 추가 |
