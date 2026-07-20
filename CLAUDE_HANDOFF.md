@@ -25,15 +25,17 @@ Region:      ap-northeast-2 (Seoul)
   **이 Supabase 프로젝트를 만든 계정**으로 로그인돼 있어야 함. 이 PC에는 다른 프로젝트(SELVAS Treasury 등)로 로그인된
   세션이 남아있을 수 있으니 `npx supabase projects list`로 이 프로젝트가 보이는지 먼저 확인할 것.
 - Edge Function 배포: `npx supabase functions deploy <name> --no-verify-jwt` (Docker 없이도 원격 빌드로 배포됨,
-  "WARNING: Docker is not running"은 무시해도 됨).
+  "WARNING: Docker is not running"은 무시해도 됨). 현재 배포된 함수 목록은 `npx supabase functions list`로 확인.
 - Secrets(HMAC/암호화/세션서명 키)는 이미 설정되어 있음 (`PHONE_HMAC_SECRET`, `PHONE_ENC_KEY`, `SESSION_JWT_SECRET`).
-  **`npx supabase secrets list`는 절대 실행하지 말 것** — 이 커맨드가 실제 시크릿 값을 그대로 출력한다 (이번 세션에서
+  **`npx supabase secrets list`는 절대 실행하지 말 것** — 이 커맨드가 실제 시크릿 값을 그대로 출력한다 (과거 세션에서
   실수로 노출시켜 즉시 재발급한 전례 있음). 값 확인이 꼭 필요하면 Edge Function 코드 안에서 `Deno.env.get()`으로만 참조.
 
 ## 3. 사용자 확정 결정사항
 
 - 인증: **Supabase 기본 Auth 미사용.** 전화번호+비밀번호 커스텀 인증 (Edge Function + 자체 세션 토큰)
-- 관리자: 최초 1명 수동 생성 완료 (로그인 ID는 사용자에게 확인. 비밀번호는 bcrypt 해시로만 DB에 저장되어 있어 아무도 모름 — 분실 시 재발급 로직 없음, 필요시 admins 테이블에 새 행 추가하는 방식으로만 대응 가능)
+- 관리자: 로그인 ID `36141897`로 이미 생성되어 있고 정상 동작 확인됨 (비밀번호는 bcrypt 해시로만 저장 — 분실 시 재발급
+  로직 없음, 필요하면 `admins` 테이블에 새 행 추가로만 대응 가능). 별도로 `setup-admin` Edge Function(ID를 `admin`으로
+  고정)도 있으나, 이미 관리자 계정이 있어 `admin_already_exists`로 항상 실패함 — **정상 동작**이며 버그 아님.
 - Supabase: 개발용 프로젝트 (무료 플랜 — Free 플랜은 계정당 활성 프로젝트 2개 제한, 참고만)
 - 프론트엔드: React 19 + Vite + TypeScript + Tailwind CSS v4 (`@tailwindcss/vite`)
 - 라우팅: `react-router-dom`의 **HashRouter** (GitHub Pages는 서버사이드 라우팅이 없어 BrowserRouter는 새로고침 시 404가 남 — 반드시 HashRouter 유지할 것)
@@ -49,12 +51,15 @@ Region:      ap-northeast-2 (Seoul)
 | 4-로그인/등록 | 학생 인증 Edge Function 3개 + 화면 | ✅ |
 | 7 | 관리자 기능 (기수/학생 등록) | ✅ |
 | 8 | 프로젝트·문제 CRUD | ✅ (백엔드+프론트엔드, 브라우저 실제 테스트 완료) |
-| 9 | CSV 업로드 | ❌ 미착수 |
-| 10 | 퀴즈 세션 및 자동채점 | ❌ 미착수 |
+| 9 | CSV 업로드 | ✅ (백엔드+프론트엔드, 3가지 유형 모두 브라우저 테스트 완료) |
+| 10 | 퀴즈 세션 및 자동채점 | ✅ (백엔드+프론트엔드, 카드형 풀이+채점+기록 브라우저 테스트 완료) |
+
+기획서 9장의 핵심 로드맵은 전부 완료된 상태. 남은 건 다듬기와 명시된 미해결 이슈들(7장, 8장 참조).
 
 ### 4-1. DB 스키마 / 마이그레이션
 
-`supabase/migrations/`에 2개 파일:
+`supabase/migrations/`에 2개 파일 (추가 마이그레이션 없음 — 퀴즈 세션 기능은 기존 스키마의
+`quiz_sessions`/`session_answers` 테이블을 그대로 사용):
 
 - `20260720000000_init_schema.sql`: `cohorts`, `users`, `admins`, `projects`, `problems`, `project_shares`,
   `problem_shares`, `quiz_sessions`, `session_answers`, `access_audit_log` 전체 테이블 + RLS 활성화 + 정책
@@ -70,14 +75,15 @@ Region:      ap-northeast-2 (Seoul)
 
 ### 4-2. Edge Functions (`supabase/functions/`)
 
-전부 `--no-verify-jwt`로 배포됨 (Supabase Auth JWT가 아닌 자체 토큰을 쓰므로).
+전부 `--no-verify-jwt`로 배포됨 (Supabase Auth JWT가 아닌 자체 토큰을 쓰므로). 아래 전부 배포 완료 상태.
 
 | 함수 | 인증 | 설명 |
 |---|---|---|
 | `check-phone` | 없음(공개) | 전화번호 등록 여부 확인 |
 | `activate-account` | 없음(공개) | 이름+인증질문 검증 → 비밀번호 설정 → 계정 활성화 |
 | `login` | 없음(공개) | 학생 로그인, bcrypt 검증, 5회 실패 시 15분 잠금, 세션 토큰 발급 |
-| `admin-login` | 없음(공개) | 관리자 로그인, `role:"admin"` 포함 세션 토큰 발급 |
+| `admin-login` | 없음(공개) | 관리자 로그인, `role:"admin"` 포함 세션 토큰 발급 (로그인 ID는 프론트에서 자유 입력) |
+| `setup-admin` | 없음(공개) | `admins` 테이블이 비어있을 때만 ID `admin`으로 최초 관리자 생성. 이미 관리자가 있으면 409 |
 | `admin-create-cohort` | `x-admin-token` | 기수 등록 |
 | `admin-create-student` | `x-admin-token` | 학생 사전 등록 (전화번호 중복 체크 포함) |
 | `admin-list-cohorts` | `x-admin-token` | 기수 목록 |
@@ -86,14 +92,21 @@ Region:      ap-northeast-2 (Seoul)
 | `create-project` / `update-project` / `delete-project` | `x-user-token` | 소유자만 수정/삭제 가능 |
 | `list-problems` | `x-user-token` | 소유자는 전체, 비소유자는 공유 규칙 적용된 문제만 |
 | `create-problem` / `update-problem` / `delete-problem` | `x-user-token` | 소유자만, 프로젝트당 100개 제한 |
+| `bulk-create-problems` | `x-user-token` | CSV 파싱 결과(JSON 배열)를 받아 한 번에 등록, 100개 제한 체크 포함 |
+| `start-quiz-session` | `x-user-token` | 조회 가능한 문제 중 랜덤으로 `count`개(기본 10, 최대 50) 뽑아 세션 생성 |
+| `submit-answer` | `x-user-token` | 문제별 채점 후 `session_answers`에 upsert, mcq/bible은 완전일치, short는 키워드 전부 포함 여부 |
+| `finish-quiz-session` | `x-user-token` | 세션 정답 수 재집계, 총문제/정답/점수(%) 반환 |
+| `quiz-history` | `x-user-token` | 본인의 최근 퀴즈 세션 20개 요약 |
 
-공유 규칙(6장 정책)은 `list-problems`에 그대로 구현되어 있음: 문제의 `share_scope`가 `inherit`이면
-프로젝트 설정을 따르고, `private`/`all`/`selected`로 개별 지정하면 프로젝트 설정보다 우선한다.
+공유 규칙(6장 정책)은 `list-problems`/`start-quiz-session`에 구현되어 있음: 문제의 `share_scope`가
+`inherit`이면 프로젝트 설정을 따르고, `private`/`all`/`selected`로 개별 지정하면 프로젝트 설정보다 우선한다.
+단, **`start-quiz-session`의 가시성 필터는 `selected` 공유를 지원하지 않음** (소유자 본인 것 + `all` 공유만
+문제 풀이 대상으로 뽑힘) — 7장 참조.
 
 **`_shared/` 헬퍼**:
 - `cors.ts`: 커스텀 헤더(`x-admin-token`, `x-user-token`)를 `Access-Control-Allow-Headers`에 반드시 포함해야 함.
-  **새 Edge Function에 새 커스텀 헤더를 추가할 때마다 여기에도 추가하고 관련 함수를 재배포할 것** — 이번
-  세션에서 이 헤더 누락으로 브라우저 요청이 전부 "Failed to fetch"로 조용히 막히는 버그를 두 번 겪었음
+  **새 Edge Function에 새 커스텀 헤더를 추가할 때마다 여기에도 추가하고 관련 함수를 재배포할 것** — 과거 세션에서
+  이 헤더 누락으로 브라우저 요청이 전부 "Failed to fetch"로 조용히 막히는 버그를 두 번 겪었음
   (admin-token, user-token 각각). 안 고치면 curl 테스트는 통과하는데 실제 브라우저에서만 실패하니 주의.
 - `session.ts`: HMAC-SHA256 서명 커스텀 세션 토큰 (payload: `{sub, exp, role?}`). `verifySessionToken`은
   파싱 실패 시 반드시 `null`을 반환하도록 try/catch로 감싸져 있음 (안 그러면 깨진 토큰이 500 에러를 냄).
@@ -108,10 +121,10 @@ Region:      ap-northeast-2 (Seoul)
 |---|---|---|
 | `/` | `HomePage` | 랜딩 (학생 로그인 / 관리자 링크) |
 | `/login` | `StudentAuthPage` | 전화번호 확인 → 로그인 또는 최초인증 분기 |
-| `/home` | `StudentHomePage` | 로그인 후 홈 (문제풀이는 아직 placeholder) |
+| `/home` | `StudentHomePage` | 퀴즈 시작/풀이(카드형)/결과/최근 기록, 프로젝트 이동 |
 | `/projects` | `ProjectsPage` | 프로젝트 목록/생성 |
-| `/projects/:projectId` | `ProjectDetailPage` | 문제 등록(유형별 폼)/목록/공유설정/삭제 |
-| `/admin/login` | `AdminLoginPage` | 관리자 로그인 |
+| `/projects/:projectId` | `ProjectDetailPage` | 문제 등록(유형별 폼)/CSV 업로드/목록/공유설정/삭제 |
+| `/admin/login` | `AdminLoginPage` | 관리자 로그인 (ID 자유 입력) + 최초 관리자 생성(ID 고정 `admin`) 토글 |
 | `/admin` | `AdminDashboardPage` | 기수/학생 등록·목록 |
 
 - `src/lib/api.ts`: 모든 Edge Function 호출을 감싼 얇은 클라이언트 (`api.xxx()`). 새 Edge Function을 추가하면
@@ -132,7 +145,7 @@ Region:      ap-northeast-2 (Seoul)
   실제 vite 서버 포트가 일치함 (안 넣으면 vite가 자체적으로 다른 포트를 골라 프리뷰가 빈 화면을 보여줌).
   **테스트 끝나면 이 임시 설정은 반드시 되돌릴 것** (커밋하지 않는 게 맞음, 실사용자 배포와 무관한 개발 편의 설정).
 - Windows Git Bash에서 curl로 한글 JSON을 테스트할 때 heredoc 방식은 인코딩이 깨질 수 있음 — 파일로 JSON을
-  작성한 뒤 `curl --data-binary @file.json`을 쓸 것 (이번 세션에서 겪은 이슈, activate-account 테스트 참조).
+  작성한 뒤 `curl --data-binary @file.json`을 쓸 것.
 
 ## 6. 보안 관련 확정 사항
 
@@ -147,101 +160,47 @@ Region:      ap-northeast-2 (Seoul)
 
 ## 7. 알려진 미해결 이슈 / 기술 부채
 
-1. **공개 엔드포인트에 rate limiting 없음**: `check-phone`, `login`, `activate-account`, `admin-login`은 인증 없이
-   누구나 호출 가능. 현재는 실패 횟수 잠금(로그인만) 외에 무차별 대입 방어가 없음. 실사용 배포 전에 고려 필요.
-2. **공유 대상 "특정 사용자 선택"(selected) UI 없음**: 백엔드(API, `sharedUserIds` 파라미터)는 이미 지원하지만,
-   프론트엔드에는 이 사람 저 사람 골라서 공유하는 화면이 없음. 지금 UI는 `private`/`all`만 선택 가능.
-3. **`src/lib/supabaseClient.ts` 미사용**: 정리하거나, 나중에 실시간 기능(퀴즈 세션 등) 붙일 때 활용.
-4. **GitHub Pages 실제 배포 상태 미확인**: 워크플로우 파일은 push됐고 여러 커밋이 그 뒤로 push됐지만, 이
-   세션에서 Actions 실행 로그나 실제 배포 URL 응답을 직접 확인하지 못함 (`gh` CLI 미설치 환경이었음).
-   **다음 작업자가 가장 먼저 할 일**: `https://github.com/YeansooJeong/CBCK_Bible-Study/actions`에서 워크플로우
-   성공 여부 확인, 안 됐으면 Settings → Pages → Source가 "GitHub Actions"로 되어 있는지 확인.
+1. **공개 엔드포인트에 rate limiting 없음**: `check-phone`, `login`, `activate-account`, `admin-login`,
+   `setup-admin`은 인증 없이 누구나 호출 가능. 현재는 실패 횟수 잠금(로그인만) 외에 무차별 대입 방어가 없음.
+   실사용 배포 전에 고려 필요.
+2. **공유 대상 "특정 사용자 선택"(selected) 관련 미완성**: 백엔드(`update-project`/`update-problem`의
+   `sharedUserIds` 파라미터)는 지원하지만, (a) 프론트엔드에 대상자를 고르는 UI가 없고 (b) `start-quiz-session`의
+   가시성 필터도 `selected` 공유를 반영하지 않음 (소유자 본인 것 + `all` 공유만 퀴즈 대상). 지금 UI는
+   `private`/`all`만 선택 가능.
+3. **`src/lib/supabaseClient.ts` 미사용**: 정리하거나, 나중에 실시간 기능 붙일 때 활용.
+4. **GitHub Pages 실제 배포 상태 미확인**: 워크플로우 파일과 이후 여러 커밋이 push됐지만, Actions 실행 로그나
+   실제 배포 URL 응답을 직접 확인한 적이 없음 (`gh` CLI 없는 환경에서 작업). **다음 작업자가 가장 먼저 할 일**:
+   `https://github.com/YeansooJeong/CBCK_Bible-Study/actions`에서 워크플로우 성공 여부 확인, 안 됐으면
+   Settings → Pages → Source가 "GitHub Actions"로 되어 있는지 확인.
 5. **비밀번호/관리자 계정 찾기(recovery) 플로우 없음**: 학생이 비밀번호를 잊으면 admin이 DB를 직접 고치는
    수밖에 없음 (수동 대응). 필요성 판단 후 결정할 것 — 기획서에 명시된 요구사항은 아님.
+6. **퀴즈 출제가 레퍼런스(강의/회차) 범위를 선택할 수 없음**: 기획서 7-1은 "레퍼런스 범위 선택 + 문제 개수
+   선택"인데, 지금 `start-quiz-session`은 `projectId`(선택)와 `count`만 받고 무작위로 뽑음. `ref_course`/
+   `ref_session` 필터링과 7-5의 "레퍼런스별 취약 구간" 결과 피드백은 아직 없음 — `finish-quiz-session`은
+   총문제/정답/점수만 반환.
+7. **CSV 파싱이 매우 단순함**: `ProjectDetailPage.tsx`의 `parseCsv()`가 쉼표 기준 split이라, 값 안에 쉼표가
+   포함된 경우(따옴표 이스케이프)를 제대로 처리 못할 수 있음. 실사용 전 더 견고한 CSV 파서로 교체 고려.
 
 ## 8. 다음 작업 (우선순위 순)
 
 ### 8-1. GitHub Pages 배포 상태 확인 (제일 먼저)
 Actions 탭에서 최신 워크플로우 실행 결과 확인 → 실패 시 원인 파악 후 수정.
 
-### 8-2. CSV 업로드 (로드맵 9번)
-- 기획서 5장 CSV 서식 그대로 따를 것 (`type,question,option1~4,answer,keywords,ref_course,ref_session,ref_location`)
-- Edge Function `bulk-create-problems` 같은 이름으로 새로 만들어, 파싱된 행 배열을 받아 `create-problem`과
-  동일한 검증(타입/공백/100개 제한)을 반복 적용하는 방식을 권장. 클라이언트에서 CSV를 파싱(예: 브라우저에서
-  간단한 split 또는 가벼운 CSV 파서 라이브러리)해서 JSON 배열로 변환 후 이 함수로 전송.
-- 프론트엔드: `ProjectDetailPage`에 "CSV 업로드" 버튼 + 파일 인풋 추가.
+### 8-2. 퀴즈 레퍼런스 범위 선택 + 취약 구간 피드백 (기획서 7장 완성)
+- `start-quiz-session`에 `refCourse`/`refSession` 필터 파라미터 추가.
+- `finish-quiz-session`에서 `session_answers` + `problems`를 조인해 레퍼런스별 정답률 집계 후 반환.
+- 프론트엔드: 퀴즈 시작 전 범위 선택 UI, 결과 화면에 취약 구간 표시.
 
-### 8-3. 퀴즈 세션 및 자동채점 (로드맵 10번)
-- 데이터 모델은 이미 있음: `quiz_sessions`, `session_answers`.
-- 새 Edge Function 예상: `start-quiz-session`(레퍼런스 범위+문제 개수 선택 → 조건에 맞는 문제 추출 →
-  세션 생성), `submit-answer`(문제별 채점: mcq는 정답 번호 비교, short/bible은 4장에 명시된 "키워드/유사도
-  매칭" 채점 로직 — `gradeShortAnswer()` 같은 함수로 분리해서 나중에 LLM 채점으로 교체 가능하게 설계할 것),
-  `finish-quiz-session`(결과 집계: 총 문제 수/정답 수/레퍼런스별 취약 구간).
-- 프론트엔드: 카드 1장 = 문제 1개 UI, 풀이 진행률 표시, 결과 화면.
+### 8-3. 공유 대상 선택(selected) UI + 퀴즈 가시성 반영
+- 프로젝트/문제 상세 화면에 학생 목록에서 공유 대상을 고르는 UI 추가 (백엔드 파라미터는 이미 있음).
+- `start-quiz-session`의 가시성 필터에 `selected` 케이스 추가.
+
+### 8-4. 마무리 다듬기
+- rate limiting, CSV 파서 견고화, `access_audit_log` 기록, 비밀번호 찾기 플로우 등 7장의 나머지 항목은
+  실사용 배포 전 우선순위를 사용자와 협의해서 결정할 것 (기획서에 명시된 필수 요구사항은 아님).
 
 ## 9. 변경 이력 (이 문서)
 
 | 날짜 | 내용 |
 |---|---|
-| 2026-07-20 (오전) | 최초 인수인계 문서 작성 (GitHub Pages 설정 중단 시점) |
-| 2026-07-20 (오후) | 전체 재작성: Pages 배포, Tailwind, Supabase 연결, 인증 Edge Function, 관리자 기능, 프로젝트·문제 CRUD(백엔드+프론트엔드) 완료 반영. CORS 커스텀 헤더 이슈 2건, 시크릿 노출 사고 및 재발급 이력 기록 |
-
----
-
-## 10. Codex update (2026-07-20)
-
-Completed:
-
-- Added CSV bulk problem upload with `bulk-create-problems`.
-- Added quiz flow: `start-quiz-session`, `submit-answer`, `finish-quiz-session`.
-- Added `quiz-history` API and recent quiz history UI.
-- Added responsive improvements to the student home page.
-- Added initial admin setup screen and `setup-admin` function.
-  - Login ID is fixed to `admin`.
-  - Password must be at least 8 characters.
-  - Setup is allowed only when the `admins` table is empty.
-  - Password is stored as bcrypt hash.
-
-Commits:
-
-- `605f739` - `feat: add bulk CSV problem upload`
-- `be69a5c` - `feat: implement quiz sessions and grading`
-- `c623b89` - `feat: add quiz history and responsive student home`
-- `2e04f52` - `feat: add initial admin setup screen`
-
-Verification:
-
-- `npm.cmd run build` succeeds.
-- Latest local branch must be pushed with `git push origin main` if not already pushed.
-
-Current issue:
-
-- Initial admin creation was attempted from the site, but the UI showed: `초기 관리자 생성에 실패했습니다. 이미 생성되었을 수 있습니다.`
-- This message is generic and does not prove that an admin already exists.
-- Most likely causes: `setup-admin` was not deployed, or the function returned `internal_error`.
-- Verify in Supabase SQL Editor: `select id, login_id, created_at from admins;`
-- Check function logs: `npx supabase functions logs setup-admin`
-- Improve the UI later to show exact errors: `admin_already_exists`, `invalid_setup`, `internal_error`.
-
-Functions still requiring deployment:
-
-- `bulk-create-problems`
-- `start-quiz-session`
-- `submit-answer`
-- `finish-quiz-session`
-- `quiz-history`
-- `setup-admin`
-
-Not implemented yet:
-
-- `selected` sharing target list and selection UI.
-- Production-grade rate limiting.
-- Complete `access_audit_log` event recording.
-
-Next actions:
-
-1. `npx supabase login`
-2. `npx supabase link --project-ref noadlxvwiaxumzensjyw`
-3. Deploy the functions above with `--no-verify-jwt`.
-4. Verify the `admins` table and create the initial `admin` account.
-5. Test admin login, quiz flow, and quiz history on the deployed Pages site.
+| 2026-07-20 | 최초 인수인계 문서 작성 (GitHub Pages 설정 중단 시점) → 전체 재작성(Pages 배포, Tailwind, Supabase 연결, 인증 Edge Function, 관리자 기능, 프로젝트·문제 CRUD 완료 반영) → CSV 업로드/퀴즈 세션/자동채점(로드맵 9, 10번) 구현 완료, 배포 및 브라우저 실제 검증 반영. 관리자 로그인 ID 하드코딩 버그 발견 및 수정(실제 관리자 ID로 로그인 가능하도록 복원), CSV 업로드 UI의 블로킹 alert()를 인라인 메시지로 교체. 문서를 하나로 통합 정리

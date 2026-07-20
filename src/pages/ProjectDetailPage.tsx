@@ -152,6 +152,7 @@ function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [problems, setProblems] = useState<Problem[]>([])
   const [isOwner, setIsOwner] = useState(false)
+  const [csvMessage, setCsvMessage] = useState<string | null>(null)
 
   async function reload(t: string, pid: string) {
     const [{ projects }, { problems, isOwner }] = await Promise.all([api.listProjects(t), api.listProblems(t, pid)])
@@ -242,15 +243,17 @@ function ProjectDetailPage() {
             <div className="mt-6 border-t border-neutral-200 pt-5 dark:border-neutral-800">
               <h3 className="mb-2 font-medium">CSV 업로드</h3>
               <p className="mb-3 text-xs text-neutral-500">type,question,option1~4,answer,keywords,ref_course,ref_session,ref_location</p>
+              {csvMessage && <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-300">{csvMessage}</p>}
               <input type="file" accept=".csv,text/csv" className="text-sm" onChange={async (e) => {
                 const file = e.target.files?.[0]
                 if (!file) return
+                setCsvMessage(null)
                 try {
                   const imported = parseCsv(await file.text())
                   await api.bulkCreateProblems(token, projectId!, imported)
-                  window.alert(`${imported.length}개 문제가 등록되었습니다.`)
+                  setCsvMessage(`${imported.length}개 문제가 등록되었습니다.`)
                   await reload(token, projectId!)
-                } catch { window.alert('CSV 업로드에 실패했습니다.') }
+                } catch { setCsvMessage('CSV 업로드에 실패했습니다.') }
                 e.target.value = ''
               }} />
             </div>
