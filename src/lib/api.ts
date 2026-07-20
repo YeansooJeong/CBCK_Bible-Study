@@ -3,13 +3,14 @@ const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 async function callFunction<T>(
   name: string,
-  options: { body?: unknown; adminToken?: string; method?: string } = {},
+  options: { body?: unknown; adminToken?: string; userToken?: string; method?: string } = {},
 ): Promise<T> {
   const headers: Record<string, string> = {
     apikey: ANON_KEY,
     'Content-Type': 'application/json',
   }
   if (options.adminToken) headers['x-admin-token'] = options.adminToken
+  if (options.userToken) headers['x-user-token'] = options.userToken
 
   const res = await fetch(`${FUNCTIONS_URL}/${name}`, {
     method: options.method ?? (options.body ? 'POST' : 'GET'),
@@ -44,6 +45,34 @@ export interface Student {
   display_name: string
   status: 'pending' | 'active'
   cohort_id: string
+  created_at: string
+}
+
+export type ShareScope = 'private' | 'all' | 'selected'
+export type ProblemShareScope = 'inherit' | ShareScope
+export type ProblemType = 'mcq' | 'short' | 'bible'
+
+export interface Project {
+  id: string
+  owner_id: string
+  title: string
+  share_scope: ShareScope
+  created_at: string
+  isOwner: boolean
+}
+
+export interface Problem {
+  id: string
+  project_id: string
+  type: ProblemType
+  question: string
+  options: Record<string, string> | null
+  answer: string
+  keywords: string | null
+  ref_course: string | null
+  ref_session: string | null
+  ref_location: string | null
+  share_scope: ProblemShareScope
   created_at: string
 }
 
@@ -85,4 +114,60 @@ export const api = {
     adminToken: string,
     payload: { name: string; phone: string; cohortId: string; displayName?: string },
   ) => callFunction<{ success: true; student: Student }>('admin-create-student', { adminToken, body: payload }),
+
+  listProjects: (userToken: string) =>
+    callFunction<{ projects: Project[] }>('list-projects', { userToken, method: 'GET' }),
+
+  createProject: (userToken: string, payload: { title: string; shareScope?: ShareScope }) =>
+    callFunction<{ success: true; project: Project }>('create-project', { userToken, body: payload }),
+
+  updateProject: (
+    userToken: string,
+    payload: { projectId: string; title?: string; shareScope?: ShareScope; sharedUserIds?: string[] },
+  ) => callFunction<{ success: true }>('update-project', { userToken, body: payload }),
+
+  deleteProject: (userToken: string, projectId: string) =>
+    callFunction<{ success: true }>('delete-project', { userToken, body: { projectId } }),
+
+  listProblems: (userToken: string, projectId: string) =>
+    callFunction<{ problems: Problem[]; isOwner: boolean }>(`list-problems?projectId=${projectId}`, {
+      userToken,
+      method: 'GET',
+    }),
+
+  createProblem: (
+    userToken: string,
+    payload: {
+      projectId: string
+      type: ProblemType
+      question: string
+      options?: Record<string, string>
+      answer: string
+      keywords?: string
+      refCourse?: string
+      refSession?: string
+      refLocation?: string
+      shareScope?: ProblemShareScope
+    },
+  ) => callFunction<{ success: true; problem: Problem }>('create-problem', { userToken, body: payload }),
+
+  updateProblem: (
+    userToken: string,
+    payload: {
+      problemId: string
+      type?: ProblemType
+      question?: string
+      options?: Record<string, string>
+      answer?: string
+      keywords?: string
+      refCourse?: string
+      refSession?: string
+      refLocation?: string
+      shareScope?: ProblemShareScope
+      sharedUserIds?: string[]
+    },
+  ) => callFunction<{ success: true }>('update-problem', { userToken, body: payload }),
+
+  deleteProblem: (userToken: string, problemId: string) =>
+    callFunction<{ success: true }>('delete-problem', { userToken, body: { problemId } }),
 }
