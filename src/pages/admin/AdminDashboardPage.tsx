@@ -24,6 +24,10 @@ function AdminDashboardPage() {
   const [studentPhone, setStudentPhone] = useState('')
   const [studentError, setStudentError] = useState<string | null>(null)
 
+  const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editCohortId, setEditCohortId] = useState('')
+
   useEffect(() => {
     const t = adminSession.get()
     if (!t) {
@@ -91,6 +95,49 @@ function AdminDashboardPage() {
     navigate('/admin/login')
   }
 
+  function startEditStudent(student: Student) {
+    setEditingStudentId(student.id)
+    setEditName(student.name)
+    setEditCohortId(student.cohort_id)
+    setStudentError(null)
+  }
+
+  async function handleSaveStudent(studentId: string) {
+    if (!token) return
+    try {
+      await api.adminUpdateStudent(token, { studentId, name: editName, cohortId: editCohortId })
+      setEditingStudentId(null)
+      const { students } = await api.adminListStudents(token, selectedCohortId)
+      setStudents(students)
+    } catch {
+      setStudentError('학생 정보 수정에 실패했습니다.')
+    }
+  }
+
+  async function handleResetStudent(studentId: string) {
+    if (!token) return
+    if (!window.confirm('이 학생의 비밀번호를 초기화하고 대기중 상태로 되돌릴까요? 학생은 다시 최초 인증을 거쳐야 합니다.')) return
+    try {
+      await api.adminUpdateStudent(token, { studentId, resetToPending: true })
+      const { students } = await api.adminListStudents(token, selectedCohortId)
+      setStudents(students)
+    } catch {
+      setStudentError('비밀번호 초기화에 실패했습니다.')
+    }
+  }
+
+  async function handleDeleteStudent(studentId: string) {
+    if (!token) return
+    if (!window.confirm('이 학생을 삭제할까요? 학생이 만든 프로젝트/문제도 함께 삭제됩니다.')) return
+    try {
+      await api.adminDeleteStudent(token, studentId)
+      const { students } = await api.adminListStudents(token, selectedCohortId)
+      setStudents(students)
+    } catch {
+      setStudentError('학생 삭제에 실패했습니다.')
+    }
+  }
+
   if (!token) return null
 
   return (
@@ -114,7 +161,7 @@ function AdminDashboardPage() {
             <input className={inputClass} placeholder="기수명" value={cohortName} onChange={(e) => setCohortName(e.target.value)} required />
             <input className={inputClass} placeholder="간사 이름" value={staffName} onChange={(e) => setStaffName(e.target.value)} required />
             <input className={inputClass} placeholder="반장 이름" value={leaderName} onChange={(e) => setLeaderName(e.target.value)} required />
-            <input className={inputClass} placeholder="킹제임스 출판연도" value={kjvYear} onChange={(e) => setKjvYear(e.target.value)} required />
+            <input className={inputClass} placeholder="킹제임스 성경(영어) 출판연도 (예: 1611)" value={kjvYear} onChange={(e) => setKjvYear(e.target.value)} required />
             <button
               type="submit"
               className="col-span-2 rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark"
@@ -165,31 +212,87 @@ function AdminDashboardPage() {
                 <thead>
                   <tr className="text-neutral-400">
                     <th className="pb-2">이름</th>
+                    <th className="pb-2">기수</th>
                     <th className="pb-2">상태</th>
                     <th className="pb-2">등록일</th>
+                    <th className="pb-2">관리</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) => (
-                    <tr key={student.id} className="border-t border-neutral-100 dark:border-neutral-900">
-                      <td className="py-2 text-neutral-900 dark:text-neutral-50">{student.name}</td>
-                      <td className="py-2">
-                        <span
-                          className={
-                            student.status === 'active'
-                              ? 'rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                              : 'rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
-                          }
-                        >
-                          {student.status === 'active' ? '활성화' : '대기중'}
-                        </span>
-                      </td>
-                      <td className="py-2 text-neutral-500">{new Date(student.created_at).toLocaleDateString('ko-KR')}</td>
-                    </tr>
-                  ))}
+                  {students.map((student) =>
+                    editingStudentId === student.id ? (
+                      <tr key={student.id} className="border-t border-neutral-100 dark:border-neutral-900">
+                        <td className="py-2">
+                          <input
+                            className={inputClass}
+                            value={editName}
+                            onChange={(e) => setEditName(e.target.value)}
+                          />
+                        </td>
+                        <td className="py-2">
+                          <select
+                            className={inputClass}
+                            value={editCohortId}
+                            onChange={(e) => setEditCohortId(e.target.value)}
+                          >
+                            {cohorts.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td className="py-2 text-neutral-400" colSpan={2}>
+                          -
+                        </td>
+                        <td className="py-2">
+                          <div className="flex gap-2">
+                            <button type="button" onClick={() => handleSaveStudent(student.id)} className="text-accent hover:underline">
+                              저장
+                            </button>
+                            <button type="button" onClick={() => setEditingStudentId(null)} className="text-neutral-400 hover:underline">
+                              취소
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      <tr key={student.id} className="border-t border-neutral-100 dark:border-neutral-900">
+                        <td className="py-2 text-neutral-900 dark:text-neutral-50">{student.name}</td>
+                        <td className="py-2 text-neutral-500">
+                          {cohorts.find((c) => c.id === student.cohort_id)?.name ?? '-'}
+                        </td>
+                        <td className="py-2">
+                          <span
+                            className={
+                              student.status === 'active'
+                                ? 'rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                : 'rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+                            }
+                          >
+                            {student.status === 'active' ? '활성화' : '대기중'}
+                          </span>
+                        </td>
+                        <td className="py-2 text-neutral-500">{new Date(student.created_at).toLocaleDateString('ko-KR')}</td>
+                        <td className="py-2">
+                          <div className="flex gap-2 whitespace-nowrap">
+                            <button type="button" onClick={() => startEditStudent(student)} className="text-accent hover:underline">
+                              수정
+                            </button>
+                            <button type="button" onClick={() => handleResetStudent(student.id)} className="text-neutral-500 hover:underline">
+                              비밀번호 초기화
+                            </button>
+                            <button type="button" onClick={() => handleDeleteStudent(student.id)} className="text-red-500 hover:underline">
+                              삭제
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ),
+                  )}
                   {students.length === 0 && (
                     <tr>
-                      <td colSpan={3} className="py-4 text-center text-neutral-400">
+                      <td colSpan={5} className="py-4 text-center text-neutral-400">
                         등록된 학생이 없습니다.
                       </td>
                     </tr>

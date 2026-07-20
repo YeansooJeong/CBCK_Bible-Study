@@ -2,6 +2,22 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import bcrypt from 'npm:bcryptjs@2'
 import { corsHeaders } from '../_shared/cors.ts'
 
+// 이름/직함류: 앞뒤 공백·존칭이 붙어도 핵심 키워드가 서로 포함되면 일치로 간주
+function fuzzyTextMatch(input: string, stored: string): boolean {
+  const a = input.replace(/\s+/g, '')
+  const b = stored.replace(/\s+/g, '')
+  if (!a || !b) return false
+  return a.includes(b) || b.includes(a)
+}
+
+// 연도류: "1611", "1611년", "1611년도" 등 숫자만 뽑아 핵심 숫자가 포함되는지 확인
+function fuzzyYearMatch(input: string, stored: string): boolean {
+  const digitsIn = input.replace(/\D+/g, '')
+  const digitsStored = stored.replace(/\D+/g, '')
+  if (!digitsStored) return false
+  return digitsIn.includes(digitsStored)
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -60,9 +76,9 @@ Deno.serve(async (req) => {
     const cohort = Array.isArray(user.cohorts) ? user.cohorts[0] : user.cohorts
     if (
       !cohort ||
-      cohort.staff_name !== staffName ||
-      cohort.leader_name !== leaderName ||
-      cohort.kjv_year !== kjvYear
+      !fuzzyTextMatch(staffName, cohort.staff_name) ||
+      !fuzzyTextMatch(leaderName, cohort.leader_name) ||
+      !fuzzyYearMatch(kjvYear, cohort.kjv_year)
     ) {
       return new Response(JSON.stringify({ error: 'auth_question_mismatch' }), {
         status: 400,

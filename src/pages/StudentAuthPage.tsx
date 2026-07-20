@@ -17,7 +17,7 @@ function errorMessage(code: string): string {
     case 'name_mismatch':
       return '이름이 일치하지 않습니다.'
     case 'auth_question_mismatch':
-      return '간사 이름 / 반장 이름 / 출판연도 중 일치하지 않는 항목이 있습니다.'
+      return '간사 이름 / 반장 이름 / 킹제임스 성경(영어) 출판연도 중 일치하지 않는 항목이 있습니다.'
     case 'weak_password':
       return '비밀번호는 8자 이상이어야 합니다.'
     case 'already_active':
@@ -182,7 +182,7 @@ function StudentAuthPage() {
             />
             <input
               className={inputClass}
-              placeholder="사용하는 킹제임스 성경 출판연도"
+              placeholder="킹제임스 성경(영어) 출판연도 (예: 1611)"
               value={kjvYear}
               onChange={(e) => setKjvYear(e.target.value)}
               required

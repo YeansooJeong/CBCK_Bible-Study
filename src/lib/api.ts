@@ -118,6 +118,14 @@ export const api = {
     payload: { name: string; phone: string; cohortId: string; displayName?: string },
   ) => callFunction<{ success: true; student: Student }>('admin-create-student', { adminToken, body: payload }),
 
+  adminUpdateStudent: (
+    adminToken: string,
+    payload: { studentId: string; name?: string; displayName?: string; cohortId?: string; resetToPending?: boolean },
+  ) => callFunction<{ success: true; student: Student }>('admin-update-student', { adminToken, body: payload }),
+
+  adminDeleteStudent: (adminToken: string, studentId: string) =>
+    callFunction<{ success: true }>('admin-delete-student', { adminToken, body: { studentId } }),
+
   listProjects: (userToken: string) =>
     callFunction<{ projects: Project[] }>('list-projects', { userToken, method: 'GET' }),
 

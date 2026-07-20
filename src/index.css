@@ -1,7 +1,13 @@
 @import "tailwindcss";
 
+/* Always render the light theme regardless of OS/browser dark-mode
+   preference. Pages that still use Tailwind `dark:` utilities (admin
+   screens, student auth) would otherwise follow OS dark mode even
+   though the rest of the app now uses a fixed light palette below. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme { --color-accent: #24483a; --color-accent-dark: #173c2e; --font-sans: Pretendard, "Noto Sans KR", SUIT, system-ui, sans-serif; }
-:root { --ink:#1e2b25; --forest:#24483a; --sage:#6f8f7a; --sage-soft:#dde8de; --gold:#c9a65a; --paper:#fbfcf8; --line:#e2e9e3; --muted:#6e7a73; color:var(--ink); background:var(--paper); font-family:var(--font-sans); }
+:root { color-scheme:light; --ink:#1e2b25; --forest:#24483a; --sage:#6f8f7a; --sage-soft:#dde8de; --gold:#c9a65a; --paper:#fbfcf8; --line:#e2e9e3; --muted:#6e7a73; color:var(--ink); background:var(--paper); font-family:var(--font-sans); }
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
 body { margin:0; min-width:320px; background:var(--paper); }

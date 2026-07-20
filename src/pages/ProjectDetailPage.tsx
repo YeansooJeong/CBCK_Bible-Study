@@ -132,13 +132,64 @@ function ProblemForm({ token, projectId, onCreated }: { token: string; projectId
   )
 }
 
+// CSV 표준 규칙대로 큰따옴표로 감싼 값 안의 쉼표/줄바꿈/이스케이프된 큰따옴표를 처리
+function parseCsvLine(line: string): string[] {
+  const cells: string[] = []
+  let current = ''
+  let inQuotes = false
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i]
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') {
+          current += '"'
+          i++
+        } else {
+          inQuotes = false
+        }
+      } else {
+        current += ch
+      }
+    } else if (ch === '"') {
+      inQuotes = true
+    } else if (ch === ',') {
+      cells.push(current)
+      current = ''
+    } else {
+      current += ch
+    }
+  }
+  cells.push(current)
+  return cells.map((c) => c.trim())
+}
+
+// 1행: 헤더, 2~4행: 유형별(mcq/short/bible) 작성 예시, 5행부터 실제 문제 데이터
+const SAMPLE_CSV =
+  'type,question,option1,option2,option3,option4,answer,keywords,ref_course,ref_session,ref_location\n' +
+  'mcq,"천지창조는 며칠 동안 이루어졌는가?",3일,6일,7일,40일,2,,창세기,1강,강의요약본 초반부\n' +
+  'short,"믿음의 정의를 한 문장으로 쓰시오.",,,,,"바라는 것들의 실상","실상;증거;바라는것",히브리서,3강,강의 유튜브 5분경\n' +
+  'bible,"믿음장으로 불리는 본문의 위치는?",,,,,"히브리서;11;1",,히브리서,3강,강의요약본 후반부\n'
+
+function downloadSampleCsv() {
+  const blob = new Blob(['﻿' + SAMPLE_CSV], { type: 'text/csv;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'cbck_problem_sample.csv'
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 function parseCsv(text: string) {
-  const rows = text.trim().split(/\r?\n/).map((line) => line.split(',').map((cell) => cell.trim().replace(/^"|"$/g, '')))
-  if (rows.length < 2) throw new Error('empty')
+  const rows = text.trim().split(/\r?\n/).map(parseCsvLine)
+  if (rows.length < 5) throw new Error('no_data')
   const headers = rows[0]
   const required = ['type', 'question', 'answer']
   if (required.some((h) => !headers.includes(h))) throw new Error('header')
-  return rows.slice(1).filter((r) => r.some(Boolean)).map((r) => {
+  // 1행 헤더 + 2~4행 예시는 건너뛰고 5행부터 실제 데이터로 읽음
+  const dataRows = rows.slice(4).filter((r) => r.some(Boolean))
+  if (dataRows.length === 0) throw new Error('no_data')
+  return dataRows.map((r) => {
     const value = (name: string) => r[headers.indexOf(name)] ?? ''
     const options = ['1', '2', '3', '4'].map((n) => value(`option${n}`))
     return { type: value('type') as ProblemType, question: value('question'), options: value('type') === 'mcq' ? Object.fromEntries(options.map((v, i) => [String(i + 1), v])) : undefined, answer: value('answer'), keywords: value('keywords') || undefined, refCourse: value('ref_course') || undefined, refSession: value('ref_session') || undefined, refLocation: value('ref_location') || undefined }
@@ -241,20 +292,39 @@ function ProjectDetailPage() {
             <ProblemForm token={token} projectId={projectId!} onCreated={() => reload(token, projectId!)} />
             <div className="csv-block">
               <h3>CSV로 한 번에 등록</h3>
-              <p>type, question, option1~4, answer, keywords, ref_course, ref_session, ref_location</p>
+              <p>
+                1행은 컬럼명, 2~4행은 유형별(4지선다/단답형/성경문제) 작성 예시입니다. <strong>실제 문제는 5행부터</strong> 채워주세요.
+              </p>
+              <p>컬럼: type, question, option1~4(4지선다만), answer, keywords(단답형 선택), ref_course, ref_session, ref_location</p>
+              <button type="button" onClick={downloadSampleCsv} className="secondary-button">
+                샘플 양식 다운로드
+              </button>
               {csvMessage && <div className="notice">{csvMessage}</div>}
-              <input type="file" accept=".csv,text/csv" className="text-sm" onChange={async (e) => {
-                const file = e.target.files?.[0]
-                if (!file) return
-                setCsvMessage(null)
-                try {
-                  const imported = parseCsv(await file.text())
-                  await api.bulkCreateProblems(token, projectId!, imported)
-                  setCsvMessage(`${imported.length}개 문제가 등록되었습니다.`)
-                  await reload(token, projectId!)
-                } catch { setCsvMessage('CSV 업로드에 실패했습니다.') }
-                e.target.value = ''
-              }} />
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  setCsvMessage(null)
+                  try {
+                    const imported = parseCsv(await file.text())
+                    await api.bulkCreateProblems(token, projectId!, imported)
+                    setCsvMessage(`${imported.length}개 문제가 등록되었습니다.`)
+                    await reload(token, projectId!)
+                  } catch (err) {
+                    const message =
+                      err instanceof Error && err.message === 'header'
+                        ? '컬럼명(1행)이 올바르지 않습니다. 샘플 양식을 참고해주세요.'
+                        : err instanceof Error && err.message === 'no_data'
+                          ? '5행부터 실제 문제 데이터를 입력해주세요.'
+                          : 'CSV 업로드에 실패했습니다.'
+                    setCsvMessage(message)
+                  }
+                  e.target.value = ''
+                }}
+              />
+
             </div>
           </section>
         )}
