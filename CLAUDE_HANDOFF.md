@@ -185,3 +185,63 @@ Actions 탭에서 최신 워크플로우 실행 결과 확인 → 실패 시 원
 |---|---|
 | 2026-07-20 (오전) | 최초 인수인계 문서 작성 (GitHub Pages 설정 중단 시점) |
 | 2026-07-20 (오후) | 전체 재작성: Pages 배포, Tailwind, Supabase 연결, 인증 Edge Function, 관리자 기능, 프로젝트·문제 CRUD(백엔드+프론트엔드) 완료 반영. CORS 커스텀 헤더 이슈 2건, 시크릿 노출 사고 및 재발급 이력 기록 |
+
+---
+
+## 10. Codex update (2026-07-20)
+
+Completed:
+
+- Added CSV bulk problem upload with `bulk-create-problems`.
+- Added quiz flow: `start-quiz-session`, `submit-answer`, `finish-quiz-session`.
+- Added `quiz-history` API and recent quiz history UI.
+- Added responsive improvements to the student home page.
+- Added initial admin setup screen and `setup-admin` function.
+  - Login ID is fixed to `admin`.
+  - Password must be at least 8 characters.
+  - Setup is allowed only when the `admins` table is empty.
+  - Password is stored as bcrypt hash.
+
+Commits:
+
+- `605f739` - `feat: add bulk CSV problem upload`
+- `be69a5c` - `feat: implement quiz sessions and grading`
+- `c623b89` - `feat: add quiz history and responsive student home`
+- `2e04f52` - `feat: add initial admin setup screen`
+
+Verification:
+
+- `npm.cmd run build` succeeds.
+- Latest local branch must be pushed with `git push origin main` if not already pushed.
+
+Current issue:
+
+- Initial admin creation was attempted from the site, but the UI showed: `초기 관리자 생성에 실패했습니다. 이미 생성되었을 수 있습니다.`
+- This message is generic and does not prove that an admin already exists.
+- Most likely causes: `setup-admin` was not deployed, or the function returned `internal_error`.
+- Verify in Supabase SQL Editor: `select id, login_id, created_at from admins;`
+- Check function logs: `npx supabase functions logs setup-admin`
+- Improve the UI later to show exact errors: `admin_already_exists`, `invalid_setup`, `internal_error`.
+
+Functions still requiring deployment:
+
+- `bulk-create-problems`
+- `start-quiz-session`
+- `submit-answer`
+- `finish-quiz-session`
+- `quiz-history`
+- `setup-admin`
+
+Not implemented yet:
+
+- `selected` sharing target list and selection UI.
+- Production-grade rate limiting.
+- Complete `access_audit_log` event recording.
+
+Next actions:
+
+1. `npx supabase login`
+2. `npx supabase link --project-ref noadlxvwiaxumzensjyw`
+3. Deploy the functions above with `--no-verify-jwt`.
+4. Verify the `admins` table and create the initial `admin` account.
+5. Test admin login, quiz flow, and quiz history on the deployed Pages site.
