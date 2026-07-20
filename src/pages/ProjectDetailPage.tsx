@@ -2,9 +2,9 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, type Problem, type ProblemShareScope, type ProblemType, type Project, type ShareScope } from '../lib/api'
 import { studentSession } from '../lib/session'
+import StudentShell, { Icon } from '../components/StudentShell'
 
-const inputClass =
-  'w-full rounded-lg border border-neutral-300 px-3 py-2 text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
+const inputClass = 'field'
 
 const typeLabel: Record<ProblemType, string> = { mcq: '4지선다', short: '단답형', bible: '성경문제' }
 
@@ -54,8 +54,8 @@ function ProblemForm({ token, projectId, onCreated }: { token: string; projectId
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      {error && <p className="text-sm text-red-500">{error}</p>}
+    <form onSubmit={handleSubmit} className="problem-form">
+      {error && <div className="notice error">{error}</div>}
       <select className={inputClass} value={type} onChange={(e) => setType(e.target.value as ProblemType)}>
         <option value="mcq">4지선다 객관식</option>
         <option value="short">단답/짧은서술형</option>
@@ -71,9 +71,9 @@ function ProblemForm({ token, projectId, onCreated }: { token: string; projectId
       />
 
       {type === 'mcq' && (
-        <div className="flex flex-col gap-2">
+        <div className="problem-form">
           {options.map((opt, i) => (
-            <div key={i} className="flex items-center gap-2">
+            <div key={i} className="option-row">
               <input
                 type="radio"
                 name="correct"
@@ -119,14 +119,14 @@ function ProblemForm({ token, projectId, onCreated }: { token: string; projectId
         />
       )}
 
-      <div className="grid grid-cols-3 gap-2">
+      <div className="reference-row">
         <input className={inputClass} placeholder="강의명" value={refCourse} onChange={(e) => setRefCourse(e.target.value)} />
         <input className={inputClass} placeholder="회차" value={refSession} onChange={(e) => setRefSession(e.target.value)} />
         <input className={inputClass} placeholder="위치" value={refLocation} onChange={(e) => setRefLocation(e.target.value)} />
       </div>
 
-      <button type="submit" className="rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark">
-        문제 추가
+      <button type="submit" className="primary-button">
+        <Icon name="plus"/> 문제 추가
       </button>
     </form>
   )
@@ -148,7 +148,7 @@ function parseCsv(text: string) {
 function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
-  const [token, setToken] = useState<string | null>(null)
+  const [token] = useState<string | null>(() => studentSession.get())
   const [project, setProject] = useState<Project | null>(null)
   const [problems, setProblems] = useState<Problem[]>([])
   const [isOwner, setIsOwner] = useState(false)
@@ -162,15 +162,14 @@ function ProjectDetailPage() {
   }
 
   useEffect(() => {
-    const t = studentSession.get()
-    if (!t || !projectId) {
+    if (!token || !projectId) {
       navigate('/login')
       return
     }
-    setToken(t)
-    reload(t, projectId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, navigate])
+    // Initial server synchronization for the selected project.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    reload(token, projectId)
+  }, [projectId, navigate, token])
 
   async function handleShareScopeChange(scope: ShareScope) {
     if (!token || !projectId) return
@@ -199,26 +198,25 @@ function ProjectDetailPage() {
   if (!token) return null
   if (!project) {
     return (
-      <div className="min-h-svh flex items-center justify-center bg-white dark:bg-neutral-950">
+      <div className="min-h-svh flex items-center justify-center bg-white">
         <p className="text-neutral-500">프로젝트를 찾을 수 없습니다.</p>
       </div>
     )
   }
 
   return (
-    <div className="min-h-svh bg-white px-6 py-10 dark:bg-neutral-950">
-      <div className="mx-auto flex max-w-2xl flex-col gap-8">
-        <div className="flex items-center justify-between">
+    <StudentShell><main className="management-shell">
+        <div className="management-heading">
           <div>
-            <Link to="/projects" className="text-sm text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100">
+            <Link to="/projects" className="text-link">
               ← 프로젝트 목록
             </Link>
-            <h1 className="mt-1 text-2xl font-semibold text-neutral-900 dark:text-neutral-50">{project.title}</h1>
+            <h1>{project.title}</h1>
           </div>
           {isOwner && (
-            <div className="flex items-center gap-2">
+            <div className="detail-toolbar">
               <select
-                className="rounded-lg border border-neutral-300 px-2 py-1 text-sm dark:border-neutral-700 dark:bg-neutral-900"
+                className="field"
                 value={project.share_scope}
                 onChange={(e) => handleShareScopeChange(e.target.value as ShareScope)}
               >
@@ -228,7 +226,7 @@ function ProjectDetailPage() {
               <button
                 type="button"
                 onClick={handleDeleteProject}
-                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm text-red-600 dark:border-red-900"
+                className="danger-button"
               >
                 프로젝트 삭제
               </button>
@@ -236,14 +234,15 @@ function ProjectDetailPage() {
           )}
         </div>
 
+        <div className="problem-layout">
         {isOwner && (
-          <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
-            <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">문제 등록</h2>
+          <section className="management-card">
+            <h2>문제 등록</h2>
             <ProblemForm token={token} projectId={projectId!} onCreated={() => reload(token, projectId!)} />
-            <div className="mt-6 border-t border-neutral-200 pt-5 dark:border-neutral-800">
-              <h3 className="mb-2 font-medium">CSV 업로드</h3>
-              <p className="mb-3 text-xs text-neutral-500">type,question,option1~4,answer,keywords,ref_course,ref_session,ref_location</p>
-              {csvMessage && <p className="mb-2 text-sm text-neutral-600 dark:text-neutral-300">{csvMessage}</p>}
+            <div className="csv-block">
+              <h3>CSV로 한 번에 등록</h3>
+              <p>type, question, option1~4, answer, keywords, ref_course, ref_session, ref_location</p>
+              {csvMessage && <div className="notice">{csvMessage}</div>}
               <input type="file" accept=".csv,text/csv" className="text-sm" onChange={async (e) => {
                 const file = e.target.files?.[0]
                 if (!file) return
@@ -260,18 +259,18 @@ function ProjectDetailPage() {
           </section>
         )}
 
-        <ul className="flex flex-col gap-3">
+        <section><div className="section-heading"><h2>등록된 문제</h2><span>{problems.length}문제</span></div><ul className="problem-list">
           {problems.map((problem) => (
-            <li key={problem.id} className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
-              <div className="mb-2 flex items-center justify-between">
-                <span className="text-xs text-neutral-400">
+            <li key={problem.id} className="problem-item">
+              <div className="problem-meta">
+                <span>
                   {typeLabel[problem.type]}
                   {problem.ref_course && ` · ${problem.ref_course} ${problem.ref_session ?? ''}`}
                 </span>
                 {isOwner && (
-                  <div className="flex items-center gap-2">
+                  <div className="inline-actions">
                     <select
-                      className="rounded-lg border border-neutral-300 px-2 py-1 text-xs dark:border-neutral-700 dark:bg-neutral-900"
+                      className="field"
                       value={problem.share_scope}
                       onChange={(e) => handleProblemShareScopeChange(problem.id, e.target.value as ProblemShareScope)}
                     >
@@ -282,21 +281,20 @@ function ProjectDetailPage() {
                     <button
                       type="button"
                       onClick={() => handleDeleteProblem(problem.id)}
-                      className="text-xs text-red-500 hover:underline"
                     >
                       삭제
                     </button>
                   </div>
                 )}
               </div>
-              <p className="text-neutral-900 dark:text-neutral-50">{problem.question}</p>
-              {isOwner && <p className="mt-1 text-xs text-neutral-400">정답: {problem.answer}</p>}
+              <p>{problem.question}</p>
+              {isOwner && <p className="problem-answer">정답: {problem.answer}</p>}
             </li>
           ))}
-          {problems.length === 0 && <p className="text-sm text-neutral-400">등록된 문제가 없습니다.</p>}
-        </ul>
-      </div>
-    </div>
+          {problems.length === 0 && <li className="empty-card">등록된 문제가 없습니다.</li>}
+        </ul></section>
+        </div>
+    </main></StudentShell>
   )
 }
 
