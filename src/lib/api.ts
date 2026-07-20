@@ -144,6 +144,9 @@ export const api = {
   finishQuizSession: (userToken: string, sessionId: string) =>
     callFunction<{ success: true; total: number; correct: number; score: number }>('finish-quiz-session', { userToken, body: { sessionId } }),
 
+  quizHistory: (userToken: string) =>
+    callFunction<{ sessions: Array<{ id: string; started_at: string; total: number; correct: number }> }>('quiz-history', { userToken, method: 'GET' }),
+
   createProblem: (
     userToken: string,
     payload: {
