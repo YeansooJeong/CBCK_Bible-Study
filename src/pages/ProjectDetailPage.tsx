@@ -132,6 +132,19 @@ function ProblemForm({ token, projectId, onCreated }: { token: string; projectId
   )
 }
 
+function parseCsv(text: string) {
+  const rows = text.trim().split(/\r?\n/).map((line) => line.split(',').map((cell) => cell.trim().replace(/^"|"$/g, '')))
+  if (rows.length < 2) throw new Error('empty')
+  const headers = rows[0]
+  const required = ['type', 'question', 'answer']
+  if (required.some((h) => !headers.includes(h))) throw new Error('header')
+  return rows.slice(1).filter((r) => r.some(Boolean)).map((r) => {
+    const value = (name: string) => r[headers.indexOf(name)] ?? ''
+    const options = ['1', '2', '3', '4'].map((n) => value(`option${n}`))
+    return { type: value('type') as ProblemType, question: value('question'), options: value('type') === 'mcq' ? Object.fromEntries(options.map((v, i) => [String(i + 1), v])) : undefined, answer: value('answer'), keywords: value('keywords') || undefined, refCourse: value('ref_course') || undefined, refSession: value('ref_session') || undefined, refLocation: value('ref_location') || undefined }
+  })
+}
+
 function ProjectDetailPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
@@ -226,6 +239,21 @@ function ProjectDetailPage() {
           <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
             <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">문제 등록</h2>
             <ProblemForm token={token} projectId={projectId!} onCreated={() => reload(token, projectId!)} />
+            <div className="mt-6 border-t border-neutral-200 pt-5 dark:border-neutral-800">
+              <h3 className="mb-2 font-medium">CSV 업로드</h3>
+              <p className="mb-3 text-xs text-neutral-500">type,question,option1~4,answer,keywords,ref_course,ref_session,ref_location</p>
+              <input type="file" accept=".csv,text/csv" className="text-sm" onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                try {
+                  const imported = parseCsv(await file.text())
+                  await api.bulkCreateProblems(token, projectId!, imported)
+                  window.alert(`${imported.length}개 문제가 등록되었습니다.`)
+                  await reload(token, projectId!)
+                } catch { window.alert('CSV 업로드에 실패했습니다.') }
+                e.target.value = ''
+              }} />
+            </div>
           </section>
         )}
 

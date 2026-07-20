@@ -151,6 +151,21 @@ export const api = {
     },
   ) => callFunction<{ success: true; problem: Problem }>('create-problem', { userToken, body: payload }),
 
+  bulkCreateProblems: (
+    userToken: string,
+    projectId: string,
+    problems: Array<{
+      type: ProblemType
+      question: string
+      options?: Record<string, string>
+      answer: string
+      keywords?: string
+      refCourse?: string
+      refSession?: string
+      refLocation?: string
+    }>,
+  ) => callFunction<{ success: true; created: number }>('bulk-create-problems', { userToken, body: { projectId, problems } }),
+
   updateProblem: (
     userToken: string,
     payload: {
