@@ -122,7 +122,7 @@ function StudentHomePage() {
       </article>)}</div> : <div className="empty-card"><strong>아직 프로젝트가 없습니다.</strong><p>첫 프로젝트를 만들고 나만의 문제를 모아보세요.</p><Link className="text-link" to="/projects">프로젝트 만들기 →</Link></div>}
     </section>
 
-    <section className="quick-card"><div><p className="eyebrow">문제 만들기</p><h2>배운 내용을 직접 문제로 남겨보세요.</h2><p>객관식·단답형·성경문제를 만들고 동료들과 공유할 수 있어요.</p></div><Link className="secondary-button" to="/projects"><Icon name="plus"/> 새 문제 만들기</Link></section>
+    <section className="quick-card"><div><p className="eyebrow">문제 만들기</p><h2>배운 내용을 직접 문제로 남겨보세요.</h2><p>객관식·단답형·성경문제를 만들고 동료들과 공유할 수 있어요.</p></div><Link className="secondary-button" to="/problems/new"><Icon name="plus"/> 새 문제 만들기</Link></section>
   </main>
 
   {quizOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && closeQuiz()}><section className="quiz-modal" role="dialog" aria-modal="true" aria-labelledby="quiz-title"><button className="modal-close" aria-label="닫기" onClick={closeQuiz}>×</button>
