@@ -135,6 +135,15 @@ export const api = {
       method: 'GET',
     }),
 
+  startQuizSession: (userToken: string, payload: { projectId?: string; count?: number }) =>
+    callFunction<{ success: true; sessionId: string; problems: Problem[] }>('start-quiz-session', { userToken, body: payload }),
+
+  submitAnswer: (userToken: string, payload: { sessionId: string; problemId: string; userAnswer: string }) =>
+    callFunction<{ success: true; isCorrect: boolean; matchScore: number }>('submit-answer', { userToken, body: payload }),
+
+  finishQuizSession: (userToken: string, sessionId: string) =>
+    callFunction<{ success: true; total: number; correct: number; score: number }>('finish-quiz-session', { userToken, body: { sessionId } }),
+
   createProblem: (
     userToken: string,
     payload: {
