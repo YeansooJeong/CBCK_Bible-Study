@@ -8,7 +8,13 @@ Deno.serve(async (req) => {
     const userId = await requireUser(req, Deno.env.get('SESSION_JWT_SECRET')!)
     if (!userId) return json({ error: 'unauthorized' }, 401)
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-    const { data, error } = await supabase.from('quiz_sessions').select('id, started_at, total, correct').eq('user_id', userId).order('started_at', { ascending: false }).limit(20)
+    const { data, error } = await supabase
+      .from('quiz_sessions')
+      .select('id, started_at, total, correct')
+      .eq('user_id', userId)
+      .eq('status', 'completed')
+      .order('started_at', { ascending: false })
+      .limit(20)
     if (error) throw error
     return json({ sessions: data ?? [] })
   } catch (error) { console.error(error); return json({ error: 'internal_error' }, 500) }

@@ -35,7 +35,10 @@ Deno.serve(async (req) => {
       .map((entry) => ({ ...entry, rate: entry.total ? Math.round((entry.correct / entry.total) * 100) : 0 }))
       .sort((a, b) => a.rate - b.rate)
 
-    const { error: updateError } = await supabase.from('quiz_sessions').update({ correct }).eq('id', sessionId)
+    const { error: updateError } = await supabase
+      .from('quiz_sessions')
+      .update({ correct, status: 'completed', finished_at: new Date().toISOString() })
+      .eq('id', sessionId)
     if (updateError) throw updateError
     return json({ success: true, total, correct, score: total ? Math.round((correct / total) * 100) : 0, weakAreas })
   } catch (error) { console.error(error); return json({ error: 'internal_error' }, 500) }

@@ -32,15 +32,26 @@ function StudentHomePage() {
   const [result, setResult] = useState<boolean | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [activeSession, setActiveSession] = useState<{ sessionId: string; problems: Problem[]; resumeIndex: number } | null>(null)
 
   useEffect(() => {
     const token = studentSession.get()
     if (!token || !user) { navigate('/login'); return }
-    Promise.all([api.quizHistory(token), api.listProjects(token)])
-      .then(([historyResult, projectResult]) => { setHistory(historyResult.sessions); setProjects(projectResult.projects) })
+    Promise.all([api.quizHistory(token), api.listProjects(token), api.getActiveQuizSession(token)])
+      .then(([historyResult, projectResult, activeResult]) => {
+        setHistory(historyResult.sessions); setProjects(projectResult.projects); setActiveSession(activeResult.session)
+      })
       .catch(() => setError('학습 정보를 불러오지 못했습니다.'))
       .finally(() => setLoading(false))
   }, [navigate, user])
+
+  function resumeQuiz() {
+    if (!activeSession) return
+    setSessionId(activeSession.sessionId); setProblems(activeSession.problems)
+    setQuestionIndex(Math.min(activeSession.resumeIndex, activeSession.problems.length - 1))
+    setAnswer(''); setResult(null); setSummary(null); setError('')
+    setQuizOpen(true)
+  }
 
   useEffect(() => {
     if ((location.state as { openStudy?: boolean } | null)?.openStudy) {
@@ -111,6 +122,7 @@ function StudentHomePage() {
     try {
       const data = await api.finishQuizSession(token, sessionId); setSummary(data)
       setHistory((await api.quizHistory(token)).sessions)
+      setActiveSession(null)
     } catch { setError('학습 결과를 불러오지 못했습니다.') }
     finally { setSubmitting(false) }
   }
@@ -125,7 +137,7 @@ function StudentHomePage() {
     {error && !quizOpen && <div className="notice error" role="alert">{error}</div>}
     <section className="dashboard-grid">
       <article className="study-hero">
-        <div className="hero-copy"><p className="eyebrow">오늘의 학습</p><h2>{history.length ? '최근 범위를 이어서\n복습해 볼까요?' : '첫 번째 학습을\n시작해 볼까요?'}</h2><p className="recommend">추천 10문제 <span>·</span> 예상 12분</p><button className="primary-button" onClick={() => openQuiz()}>오늘의 학습 시작 <Icon name="arrow" /></button></div>
+        <div className="hero-copy"><p className="eyebrow">오늘의 학습</p><h2>{activeSession ? '풀던 문제를\n이어서 볼까요?' : history.length ? '오늘은 어떤 문제를\n복습해 볼까요?' : '첫 번째 학습을\n시작해 볼까요?'}</h2><p className="recommend">{activeSession ? `${activeSession.problems.length}문제 중 ${activeSession.resumeIndex + 1}번째` : <>추천 10문제 <span>·</span> 예상 12분</>}</p>{activeSession ? <div style={{ display: 'flex', gap: 10 }}><button className="primary-button" onClick={resumeQuiz}>이어서 풀기 <Icon name="arrow" /></button><button className="secondary-button" onClick={() => openQuiz()}>새로 시작</button></div> : <button className="primary-button" onClick={() => openQuiz()}>오늘의 학습 시작 <Icon name="arrow" /></button>}</div>
         <div className="study-visual" aria-hidden="true"><div className="desk-card back-two"/><div className="desk-card back-one"/><div className="desk-card front"><span/><i/><i/><i/></div><div className="book-base"><span/></div></div>
       </article>
       <article className="weekly-card">

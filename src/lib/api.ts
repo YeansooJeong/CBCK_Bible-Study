@@ -172,6 +172,12 @@ export const api = {
   quizHistory: (userToken: string) =>
     callFunction<{ sessions: Array<{ id: string; started_at: string; total: number; correct: number }> }>('quiz-history', { userToken, method: 'GET' }),
 
+  getActiveQuizSession: (userToken: string) =>
+    callFunction<{ session: { sessionId: string; problems: Problem[]; resumeIndex: number } | null }>(
+      'get-active-quiz-session',
+      { userToken, method: 'GET' },
+    ),
+
   createProblem: (
     userToken: string,
     payload: {

@@ -17,7 +17,11 @@ Deno.serve(async (req) => {
     )
     const selected = filtered.sort(() => Math.random() - 0.5).slice(0, count)
     if (!selected.length) return json({ error: 'no_available_problems' }, 400)
-    const { data: session, error: sessionError } = await supabase.from('quiz_sessions').insert({ user_id: userId, total: selected.length }).select('id').single()
+    const { data: session, error: sessionError } = await supabase
+      .from('quiz_sessions')
+      .insert({ user_id: userId, total: selected.length, status: 'in_progress', problem_ids: selected.map((p: any) => p.id) })
+      .select('id')
+      .single()
     if (sessionError) throw sessionError
     return json({ success: true, sessionId: session.id, problems: selected.map(({ projects: _projects, ...problem }: any) => problem) })
   } catch (error) { console.error(error); return json({ error: 'internal_error' }, 500) }
