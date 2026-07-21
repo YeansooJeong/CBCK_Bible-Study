@@ -33,6 +33,8 @@ function StudentHomePage() {
   const [summary, setSummary] = useState<Summary | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [activeSession, setActiveSession] = useState<{ sessionId: string; problems: Problem[]; resumeIndex: number } | null>(null)
+  const [bookmarkedProblems, setBookmarkedProblems] = useState<Problem[]>([])
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false)
 
   useEffect(() => {
     const token = studentSession.get()
@@ -44,6 +46,11 @@ function StudentHomePage() {
       .catch(() => setError('학습 정보를 불러오지 못했습니다.'))
       .finally(() => setLoading(false))
   }, [navigate, user])
+
+  useEffect(() => {
+    const token = studentSession.get()
+    if (token) api.listBookmarkedProblems(token).then(({ problems: rows }) => setBookmarkedProblems(rows)).catch(() => undefined)
+  }, [])
 
   function resumeQuiz() {
     if (!activeSession) return
@@ -79,8 +86,12 @@ function StudentHomePage() {
   const question = problems[questionIndex]
 
   function openQuiz(projectId = '') {
-    setSelectedProject(projectId); setSelectedCourse(''); setSelectedSession('')
+    setSelectedProject(projectId); setSelectedCourse(''); setSelectedSession(''); setBookmarkedOnly(false)
     setQuizOpen(true); setSessionId(null); setProblems([]); setSummary(null); setError('')
+  }
+
+  function openBookmarkedQuiz() {
+    setSelectedProject(''); setSelectedCourse(''); setSelectedSession(''); setBookmarkedOnly(true); setQuizOpen(true); setSessionId(null); setProblems([]); setSummary(null); setError('')
   }
   function closeQuiz() { if (!submitting) { setQuizOpen(false); setSessionId(null); setProblems([]); setSummary(null) } }
 
@@ -100,6 +111,7 @@ function StudentHomePage() {
         projectId: selectedProject || undefined,
         refCourse: selectedCourse || undefined,
         refSession: selectedSession || undefined,
+        bookmarkedOnly,
         count,
       })
       setSessionId(data.sessionId); setProblems(data.problems); setQuestionIndex(0); setAnswer(''); setResult(null)
@@ -155,6 +167,7 @@ function StudentHomePage() {
       </article>)}</div> : <div className="empty-card"><strong>아직 프로젝트가 없습니다.</strong><p>첫 프로젝트를 만들고 나만의 문제를 모아보세요.</p><Link className="text-link" to="/projects">프로젝트 만들기 →</Link></div>}
     </section>
 
+    {bookmarkedProblems.length > 0 && <section className="recent-section"><div className="section-heading"><h2>북마크한 문제</h2><button className="text-link" onClick={openBookmarkedQuiz}>복습 퀴즈 시작</button></div><div className="project-grid">{bookmarkedProblems.slice(0, 3).map((problem) => <article className="project-card" key={problem.id}><div className="project-card-copy"><h3>{problem.question}</h3><p>{problem.ref_course ?? '문제'} {problem.ref_session ?? ''}</p></div></article>)}</div></section>}
     <section className="quick-card"><div><p className="eyebrow">문제 만들기</p><h2>배운 내용을 직접 문제로 남겨보세요.</h2><p>객관식·단답형·성경문제를 만들고 동료들과 공유할 수 있어요.</p></div><Link className="secondary-button" to="/problems/new"><Icon name="plus"/> 새 문제 만들기</Link></section>
   </main>
 

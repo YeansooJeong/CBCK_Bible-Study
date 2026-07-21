@@ -8,13 +8,19 @@ Deno.serve(async (req) => {
   try {
     const userId = await requireUser(req, Deno.env.get('SESSION_JWT_SECRET')!)
     if (!userId) return json({ error: 'unauthorized' }, 401)
-    const { projectId, refCourse, refSession, count: requestedCount } = await req.json().catch(() => ({}))
+    const { projectId, refCourse, refSession, bookmarkedOnly, count: requestedCount } = await req.json().catch(() => ({}))
     const count = Math.min(Math.max(Number(requestedCount) || 10, 1), 50)
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     const visible = await fetchVisibleProblems(supabase, userId, projectId)
-    const filtered = visible.filter(
+    let filtered = visible.filter(
       (p: any) => (!refCourse || p.ref_course === refCourse) && (!refSession || p.ref_session === refSession),
     )
+    if (bookmarkedOnly) {
+      const { data: bookmarks, error: bookmarkError } = await supabase.from('problem_bookmarks').select('problem_id').eq('user_id', userId)
+      if (bookmarkError) throw bookmarkError
+      const ids = new Set((bookmarks ?? []).map((row) => row.problem_id))
+      filtered = filtered.filter((problem: any) => ids.has(problem.id))
+    }
     const selected = filtered.sort(() => Math.random() - 0.5).slice(0, count)
     if (!selected.length) return json({ error: 'no_available_problems' }, 400)
     const { data: session, error: sessionError } = await supabase

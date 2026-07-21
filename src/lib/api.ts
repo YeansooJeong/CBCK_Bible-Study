@@ -215,7 +215,7 @@ export const api = {
 
   startQuizSession: (
     userToken: string,
-    payload: { projectId?: string; refCourse?: string; refSession?: string; count?: number },
+    payload: { projectId?: string; refCourse?: string; refSession?: string; count?: number; bookmarkedOnly?: boolean },
   ) => callFunction<{ success: true; sessionId: string; problems: Problem[] }>('start-quiz-session', { userToken, body: payload }),
 
   listQuizScopes: (userToken: string, projectId?: string) =>
