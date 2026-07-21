@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
     if (answerResult.error) throw answerResult.error
     const { count } = await supabase.from('session_answers').select('id', { count: 'exact', head: true }).eq('session_id', sessionId).eq('is_correct', true)
     await supabase.from('quiz_sessions').update({ correct: count ?? 0 }).eq('id', sessionId)
-    return json({ success: true, isCorrect, matchScore })
+    return json({ success: true, isCorrect, matchScore, answer: problem.answer })
   } catch (error) { console.error(error); return json({ error: 'internal_error' }, 500) }
 })
 

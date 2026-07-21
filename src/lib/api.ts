@@ -227,7 +227,7 @@ export const api = {
     ),
 
   submitAnswer: (userToken: string, payload: { sessionId: string; problemId: string; userAnswer: string }) =>
-    callFunction<{ success: true; isCorrect: boolean; matchScore: number }>('submit-answer', { userToken, body: payload }),
+    callFunction<{ success: true; isCorrect: boolean; matchScore: number; answer: string }>('submit-answer', { userToken, body: payload }),
 
   finishQuizSession: (userToken: string, sessionId: string) =>
     callFunction<{

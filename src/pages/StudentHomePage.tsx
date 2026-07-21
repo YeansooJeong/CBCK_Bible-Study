@@ -29,6 +29,7 @@ function StudentHomePage() {
   const [questionIndex, setQuestionIndex] = useState(0)
   const [answer, setAnswer] = useState('')
   const [result, setResult] = useState<boolean | null>(null)
+  const [correctAnswer, setCorrectAnswer] = useState<string | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [activeSession, setActiveSession] = useState<{ sessionId: string; problems: Problem[]; resumeIndex: number } | null>(null)
@@ -61,7 +62,7 @@ function StudentHomePage() {
     if (!activeSession) return
     setSessionId(activeSession.sessionId); setProblems(activeSession.problems)
     setQuestionIndex(Math.min(activeSession.resumeIndex, activeSession.problems.length - 1))
-    setAnswer(''); setResult(null); setSummary(null); setError('')
+    setAnswer(''); setResult(null); setCorrectAnswer(null); setSummary(null); setError('')
     setCommentPanelOpen(false); setCommentDraft(''); setEditingCommentId(null)
     setQuizOpen(true)
   }
@@ -128,7 +129,7 @@ function StudentHomePage() {
         bookmarkedOnly,
         count,
       })
-      setSessionId(data.sessionId); setProblems(data.problems); setQuestionIndex(0); setAnswer(''); setResult(null)
+      setSessionId(data.sessionId); setProblems(data.problems); setQuestionIndex(0); setAnswer(''); setResult(null); setCorrectAnswer(null)
       setCommentPanelOpen(false); setCommentDraft(''); setEditingCommentId(null)
     } catch { setError('선택한 범위에 출제 가능한 문제가 없습니다.') }
     finally { setSubmitting(false) }
@@ -146,6 +147,7 @@ function StudentHomePage() {
     try {
       const data = await api.submitAnswer(token, { sessionId, problemId: question.id, userAnswer: answer })
       setResult(data.isCorrect)
+      setCorrectAnswer(data.answer)
       loadComments(question.id)
     }
     catch { setError('답안 제출에 실패했습니다.') }
@@ -174,7 +176,7 @@ function StudentHomePage() {
 
   async function nextQuestion() {
     setCommentPanelOpen(false); setCommentDraft(''); setEditingCommentId(null)
-    if (questionIndex < problems.length - 1) { setQuestionIndex((value) => value + 1); setAnswer(''); setResult(null); return }
+    if (questionIndex < problems.length - 1) { setQuestionIndex((value) => value + 1); setAnswer(''); setResult(null); setCorrectAnswer(null); return }
     const token = studentSession.get(); if (!token || !sessionId) return
     setSubmitting(true)
     try {
@@ -231,8 +233,8 @@ function StudentHomePage() {
       </div>}
       <div className="result-actions"><button className="secondary-button" onClick={() => openQuiz(selectedProject)}>다시 풀기</button><button className="primary-button" onClick={closeQuiz}>학습 마치기</button></div></div>
     : question && <div className="quiz-body"><div className="quiz-top"><div><p className="eyebrow">{question.ref_course || '문제은행'} {question.ref_session ? `${question.ref_session}강` : ''}</p><span>{questionIndex + 1} / {problems.length}</span></div><div className="quiz-progress"><span style={{ width: `${(questionIndex + 1) / problems.length * 100}%` }}/></div></div><h2 id="quiz-title">{question.question}</h2>
-      {question.options ? <div className="answer-options">{Object.entries(question.options).map(([key, value]) => <button key={key} disabled={result !== null} className={answer === key ? 'selected' : ''} onClick={() => setAnswer(key)}><span>{key}</span>{value}</button>)}</div> : <input className="answer-input" value={answer} disabled={result !== null} onChange={(event) => setAnswer(event.target.value)} placeholder={question.type === 'bible' ? '예: 히브리서;11:1' : '답안을 입력하세요'} />}
-      {result !== null && <div className={`feedback ${result ? 'correct' : 'wrong'}`}><strong>{result ? '정답이에요.' : '한 번 더 기억해 주세요.'}</strong><p>{[question.ref_course, question.ref_session ? `${question.ref_session}강` : '', question.ref_kind, question.ref_detail].filter(Boolean).join(' · ') || '등록된 레퍼런스가 없습니다.'}</p></div>}
+      {question.options ? <div className="answer-options">{Object.entries(question.options).map(([key, value]) => <button key={key} disabled={result !== null} className={answer === key ? 'selected' : ''} onClick={() => setAnswer(key)}><span>{key}</span>{value}</button>)}</div> : <input className="answer-input" value={answer} disabled={result !== null} onChange={(event) => setAnswer(event.target.value)} placeholder={question.type === 'bible' ? '예: 히브리서 11:1' : '답안을 입력하세요'} />}
+      {result !== null && <div className={`feedback ${result ? 'correct' : 'wrong'}`}><strong>{result ? '정답이에요.' : '한 번 더 기억해 주세요.'}</strong>{result === false && correctAnswer && <p className="feedback-answer">정답: {question.options ? (question.options[correctAnswer] ?? correctAnswer) : correctAnswer}</p>}<p>{[question.ref_course, question.ref_session ? `${question.ref_session}강` : '', question.ref_kind, question.ref_detail].filter(Boolean).join(' · ') || '등록된 레퍼런스가 없습니다.'}</p></div>}
       {result !== null && <div className="comment-block">
         <button type="button" className="comment-bubble" onClick={() => setCommentPanelOpen((value) => !value)}>
           <Icon name="file" size={16}/> 댓글 {(commentsByProblem[question.id] ?? []).length > 0 && <span className="comment-count">{(commentsByProblem[question.id] ?? []).length}</span>}

@@ -92,7 +92,7 @@ export default function NewProblemPage() {
       await api.createProblem(token, {
         projectId: draft.projectId, type: draft.type, question: draft.question.trim(),
         options: draft.type === 'mcq' ? Object.fromEntries(draft.options.map((value, index) => [String(index + 1), value.trim()])) : undefined,
-        answer: draft.type === 'mcq' ? String(draft.correctIndex + 1) : draft.type === 'short' ? draft.shortAnswer.trim() : `${draft.book.trim()};${draft.chapter}:${draft.verse}`,
+        answer: draft.type === 'mcq' ? String(draft.correctIndex + 1) : draft.type === 'short' ? draft.shortAnswer.trim() : `${draft.book.trim()} ${draft.chapter}:${draft.verse}`,
         keywords: draft.type === 'short' ? draft.keywords.trim() || undefined : undefined,
         refSession: draft.session, refKind: draft.refKind || undefined, refDetail: draft.refDetail.trim() || undefined, shareScope: draft.share,
         sharedUserIds: draft.share === 'selected' ? draft.sharedUserIds : undefined,

@@ -12,7 +12,7 @@ const SAMPLE_CSV =
   'type,question,option1,option2,option3,option4,answer,keywords,ref_session,ref_kind,ref_detail\n' +
   'mcq,"천지창조는 며칠 동안 이루어졌는가?",3일,6일,7일,40일,2,,1,강의요약본,초반부\n' +
   'short,"믿음의 정의를 한 문장으로 쓰시오.",,,,,"바라는 것들의 실상","실상;증거;바라는것",3,강의영상,5분경\n' +
-  'bible,"믿음장으로 불리는 본문의 위치는?",,,,,"히브리서;11:1",,3,강의요약본,후반부\n'
+  'bible,"믿음장으로 불리는 본문의 위치는?",,,,,"히브리서 11:1",,3,강의요약본,후반부\n'
 
 function downloadSampleCsv() {
   downloadCsv('cbck_problem_sample.csv', SAMPLE_CSV)
@@ -30,7 +30,7 @@ type | question | option1 | option2 | option3 | option4 | answer | keywords | re
 - type: mcq(객관식) / short(단답형) / bible(성경문제) 중 하나
 - question: 문제 본문
 - option1~4: mcq일 때만 4개 보기를 채우고, 그 외 유형은 비워둬
-- answer: mcq는 정답 보기의 번호(1~4 중 하나), short는 정답 문장, bible은 "책;장:절" 형식(예: 히브리서;11:1)
+- answer: mcq는 정답 보기의 번호(1~4 중 하나), short는 정답 문장, bible은 세미콜론 없이 "책 장:절" 형식(예: 히브리서 11:1)
 - keywords: short 유형일 때만 정답으로 인정할 핵심 단어를 세미콜론(;)으로 구분해서 적고, 그 외 유형은 비워둬
 - ref_session: [회차] 값을 숫자만 그대로 적어줘(예: 3)
 - ref_kind: 정답의 출처가 "강의요약본"인지 "강의영상"인지 둘 중 하나
