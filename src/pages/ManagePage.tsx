@@ -10,6 +10,8 @@ import SubjectManagementPanel from '../components/SubjectManagementPanel'
 // 1행: 헤더(name,phone), 2행부터 실제 신학원생 데이터
 const STUDENT_SAMPLE_CSV = 'name,phone\n"홍길동","01012345678"\n"김철수","01098765432"\n'
 
+const STUDENTS_PER_PAGE = 10
+
 function parseStudentCsv(text: string) {
   const rows = text.trim().split(/\r?\n/).map(parseCsvLine)
   if (rows.length < 2) throw new Error('no_data')
@@ -43,6 +45,9 @@ function ManagePage() {
   const [editName, setEditName] = useState('')
   const [editCohortId, setEditCohortId] = useState('')
 
+  const [studentSearch, setStudentSearch] = useState('')
+  const [studentPage, setStudentPage] = useState(1)
+
   useEffect(() => {
     const user = studentSession.getUser()
     if (!token || !user?.isAdmin) {
@@ -59,6 +64,8 @@ function ManagePage() {
   useEffect(() => {
     if (token && selectedCohortId) {
       api.adminListStudents({ userToken: token }, selectedCohortId).then(({ students }) => setStudents(students))
+      setStudentSearch('')
+      setStudentPage(1)
     }
   }, [token, selectedCohortId])
 
@@ -67,6 +74,13 @@ function ManagePage() {
     const { students } = await api.adminListStudents({ userToken: token }, selectedCohortId)
     setStudents(students)
   }
+
+  const filteredStudents = students
+    .filter((s) => s.name.toLocaleLowerCase().includes(studentSearch.trim().toLocaleLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  const studentPageCount = Math.max(1, Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE))
+  const safeStudentPage = Math.min(studentPage, studentPageCount)
+  const pagedStudents = filteredStudents.slice((safeStudentPage - 1) * STUDENTS_PER_PAGE, safeStudentPage * STUDENTS_PER_PAGE)
 
   async function handleCreateStudent(e: FormEvent) {
     e.preventDefault()
@@ -209,7 +223,14 @@ function ManagePage() {
               />
             </div>
 
-            <table style={{ width: '100%', textAlign: 'left', fontSize: 14, marginTop: 20 }}>
+            <input
+              className="field"
+              placeholder="이름으로 검색"
+              value={studentSearch}
+              onChange={(e) => { setStudentSearch(e.target.value); setStudentPage(1) }}
+              style={{ marginTop: 20, maxWidth: 260 }}
+            />
+            <table style={{ width: '100%', textAlign: 'left', fontSize: 14, marginTop: 12 }}>
               <thead>
                 <tr>
                   <th>이름</th>
@@ -219,7 +240,7 @@ function ManagePage() {
                 </tr>
               </thead>
               <tbody>
-                {students.map((student) =>
+                {pagedStudents.map((student) =>
                   editingStudentId === student.id ? (
                     <tr key={student.id}>
                       <td>
@@ -258,13 +279,24 @@ function ManagePage() {
                     </tr>
                   ),
                 )}
-                {students.length === 0 && (
+                {filteredStudents.length === 0 && (
                   <tr>
-                    <td colSpan={4}>등록된 신학원생이 없습니다.</td>
+                    <td colSpan={4}>{students.length === 0 ? '등록된 신학원생이 없습니다.' : '검색 결과가 없습니다.'}</td>
                   </tr>
                 )}
               </tbody>
             </table>
+            {studentPageCount > 1 && (
+              <div className="inline-actions" style={{ justifyContent: 'center', marginTop: 14 }}>
+                <button type="button" onClick={() => setStudentPage((p) => Math.max(1, p - 1))} disabled={safeStudentPage === 1}>
+                  이전
+                </button>
+                <span>{safeStudentPage} / {studentPageCount}</span>
+                <button type="button" onClick={() => setStudentPage((p) => Math.min(studentPageCount, p + 1))} disabled={safeStudentPage === studentPageCount}>
+                  다음
+                </button>
+              </div>
+            )}
           </section>
         )}
 

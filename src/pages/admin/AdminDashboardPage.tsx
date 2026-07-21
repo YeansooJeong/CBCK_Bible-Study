@@ -9,6 +9,8 @@ import SubjectManagementPanel from '../../components/SubjectManagementPanel'
 const inputClass =
   'w-full rounded-lg border border-neutral-300 px-3 py-2 text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
 
+const STUDENTS_PER_PAGE = 10
+
 // 1행: 헤더(name,phone), 2행부터 실제 신학원생 데이터
 const STUDENT_SAMPLE_CSV = 'name,phone\n"홍길동","01012345678"\n"김철수","01098765432"\n'
 
@@ -57,6 +59,9 @@ function AdminDashboardPage() {
   const [editName, setEditName] = useState('')
   const [editCohortId, setEditCohortId] = useState('')
 
+  const [studentSearch, setStudentSearch] = useState('')
+  const [studentPage, setStudentPage] = useState(1)
+
   const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({})
   const [auditLog, setAuditLog] = useState<Array<{ id: number; action: string; createdAt: string; actorName: string; targetName: string }>>([])
 
@@ -95,8 +100,17 @@ function AdminDashboardPage() {
   useEffect(() => {
     if (token && selectedCohortId) {
       api.adminListStudents({ adminToken: token }, selectedCohortId).then(({ students }) => setStudents(students))
+      setStudentSearch('')
+      setStudentPage(1)
     }
   }, [token, selectedCohortId])
+
+  const filteredStudents = students
+    .filter((s) => s.name.toLocaleLowerCase().includes(studentSearch.trim().toLocaleLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name, 'ko'))
+  const studentPageCount = Math.max(1, Math.ceil(filteredStudents.length / STUDENTS_PER_PAGE))
+  const safeStudentPage = Math.min(studentPage, studentPageCount)
+  const pagedStudents = filteredStudents.slice((safeStudentPage - 1) * STUDENTS_PER_PAGE, safeStudentPage * STUDENTS_PER_PAGE)
 
   async function handleCreateCohort(e: FormEvent) {
     e.preventDefault()
@@ -391,6 +405,12 @@ function AdminDashboardPage() {
                 </div>
               </div>
 
+              <input
+                className={inputClass + ' mb-3 max-w-xs'}
+                placeholder="이름으로 검색"
+                value={studentSearch}
+                onChange={(e) => { setStudentSearch(e.target.value); setStudentPage(1) }}
+              />
               <div className="-mx-2 overflow-x-auto px-2">
               <table className="min-w-[760px] w-full text-left text-sm">
                 <thead>
@@ -404,7 +424,7 @@ function AdminDashboardPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {students.map((student) =>
+                  {pagedStudents.map((student) =>
                     editingStudentId === student.id ? (
                       <tr key={student.id} className="border-t border-neutral-100 dark:border-neutral-900">
                         <td className="py-2">
@@ -490,16 +510,37 @@ function AdminDashboardPage() {
                       </tr>
                     ),
                   )}
-                  {students.length === 0 && (
+                  {filteredStudents.length === 0 && (
                     <tr>
                       <td colSpan={6} className="py-4 text-center text-neutral-400">
-                        등록된 신학원생이 없습니다.
+                        {students.length === 0 ? '등록된 신학원생이 없습니다.' : '검색 결과가 없습니다.'}
                       </td>
                     </tr>
                   )}
                 </tbody>
               </table>
               </div>
+              {studentPageCount > 1 && (
+                <div className="mt-3 flex items-center justify-center gap-3 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => setStudentPage((p) => Math.max(1, p - 1))}
+                    disabled={safeStudentPage === 1}
+                    className="rounded-lg border border-neutral-300 px-3 py-1 disabled:opacity-40 dark:border-neutral-700"
+                  >
+                    이전
+                  </button>
+                  <span className="text-neutral-500">{safeStudentPage} / {studentPageCount}</span>
+                  <button
+                    type="button"
+                    onClick={() => setStudentPage((p) => Math.min(studentPageCount, p + 1))}
+                    disabled={safeStudentPage === studentPageCount}
+                    className="rounded-lg border border-neutral-300 px-3 py-1 disabled:opacity-40 dark:border-neutral-700"
+                  >
+                    다음
+                  </button>
+                </div>
+              )}
             </>
           )}
         </section>
