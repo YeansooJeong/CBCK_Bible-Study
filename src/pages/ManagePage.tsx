@@ -7,7 +7,7 @@ import StudentShell from '../components/StudentShell'
 import ProblemModerationPanel from '../components/ProblemModerationPanel'
 import SubjectManagementPanel from '../components/SubjectManagementPanel'
 
-// 1행: 헤더(name,phone), 2행부터 실제 학생 데이터
+// 1행: 헤더(name,phone), 2행부터 실제 신학원생 데이터
 const STUDENT_SAMPLE_CSV = 'name,phone\n"홍길동","01012345678"\n"김철수","01098765432"\n'
 
 function parseStudentCsv(text: string) {
@@ -79,7 +79,7 @@ function ManagePage() {
       await reloadStudents()
     } catch (err) {
       setStudentError(
-        err instanceof ApiError && err.message === 'phone_already_registered' ? '이미 등록된 전화번호입니다.' : '학생 등록에 실패했습니다.',
+        err instanceof ApiError && err.message === 'phone_already_registered' ? '이미 등록된 전화번호입니다.' : '신학원생 등록에 실패했습니다.',
       )
     }
   }
@@ -98,13 +98,13 @@ function ManagePage() {
       setEditingStudentId(null)
       await reloadStudents()
     } catch {
-      setStudentError('학생 정보 수정에 실패했습니다.')
+      setStudentError('신학원생 정보 수정에 실패했습니다.')
     }
   }
 
   async function handleResetStudent(studentId: string) {
     if (!token) return
-    if (!window.confirm('이 학생의 비밀번호를 초기화하고 대기중 상태로 되돌릴까요? 학생은 다시 최초 인증을 거쳐야 합니다.')) return
+    if (!window.confirm('이 신학원생의 비밀번호를 초기화하고 대기중 상태로 되돌릴까요? 신학원생은 다시 최초 인증을 거쳐야 합니다.')) return
     try {
       await api.adminUpdateStudent({ userToken: token }, { studentId, resetToPending: true })
       await reloadStudents()
@@ -115,12 +115,12 @@ function ManagePage() {
 
   async function handleDeleteStudent(studentId: string) {
     if (!token) return
-    if (!window.confirm('이 학생을 삭제할까요? 학생이 만든 프로젝트/문제도 함께 삭제됩니다.')) return
+    if (!window.confirm('이 신학원생을 삭제할까요? 신학원생이 만든 프로젝트/문제도 함께 삭제됩니다.')) return
     try {
       await api.adminDeleteStudent({ userToken: token }, studentId)
       await reloadStudents()
     } catch {
-      setStudentError('학생 삭제에 실패했습니다.')
+      setStudentError('신학원생 삭제에 실패했습니다.')
     }
   }
 
@@ -143,7 +143,7 @@ function ManagePage() {
         err instanceof Error && err.message === 'header'
           ? '컬럼명(1행)이 올바르지 않습니다. 샘플 양식을 참고해주세요.'
           : err instanceof Error && err.message === 'no_data'
-            ? '2행부터 학생 데이터를 입력해주세요.'
+            ? '2행부터 신학원생 데이터를 입력해주세요.'
             : '일괄 등록에 실패했습니다.',
       )
     }
@@ -156,7 +156,7 @@ function ManagePage() {
       <main className="management-shell">
         <div className="management-heading">
           <div>
-            <h1>학생/문제 관리</h1>
+            <h1>신학원생/문제 관리</h1>
           </div>
         </div>
 
@@ -174,7 +174,7 @@ function ManagePage() {
 
         {selectedCohortId && (
           <section className="management-card">
-            <h2>학생 등록</h2>
+            <h2>신학원생 등록</h2>
             {studentError && <div className="notice error">{studentError}</div>}
             <form onSubmit={handleCreateStudent} className="inline-actions" style={{ marginBottom: 16 }}>
               <input className="field" placeholder="이름" value={studentName} onChange={(e) => setStudentName(e.target.value)} required />
@@ -185,7 +185,7 @@ function ManagePage() {
             </form>
 
             <div className="csv-block">
-              <p className="notice">1행은 컬럼명(name, phone), 실제 학생은 2행부터 채워주세요.</p>
+              <p className="notice">1행은 컬럼명(name, phone), 실제 신학원생은 2행부터 채워주세요.</p>
               {bulkCsvMessage && <p className="notice">{bulkCsvMessage}</p>}
               <button type="button" onClick={() => downloadCsv('cbck_student_sample.csv', STUDENT_SAMPLE_CSV)} className="secondary-button">
                 샘플 양식 다운로드
@@ -260,7 +260,7 @@ function ManagePage() {
                 )}
                 {students.length === 0 && (
                   <tr>
-                    <td colSpan={4}>등록된 학생이 없습니다.</td>
+                    <td colSpan={4}>등록된 신학원생이 없습니다.</td>
                   </tr>
                 )}
               </tbody>

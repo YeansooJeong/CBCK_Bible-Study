@@ -75,7 +75,7 @@ export default function NewProblemPage() {
     if (draft.type === 'bible' && (!draft.book.trim() || !draft.chapter || !draft.verse)) return '정답 성경책·장·절을 모두 입력해 주세요.'
     if (!draft.session) return '회차를 선택해 주세요.'
     if (!draft.refKind) return '출처 유형(강의요약본/강의영상)을 선택해 주세요.'
-    if (draft.share === 'selected' && draft.sharedUserIds.length === 0) return '공유할 학생을 한 명 이상 선택해 주세요.'
+    if (draft.share === 'selected' && draft.sharedUserIds.length === 0) return '공유할 신학원생을 한 명 이상 선택해 주세요.'
     return ''
   }
 
@@ -123,9 +123,9 @@ export default function NewProblemPage() {
           <label className="creator-field full">세부 내용 <span>선택</span><input value={draft.refDetail} onChange={(e) => update('refDetail', e.target.value)} placeholder="예: 초반부, 12분경"/></label>
         </div></section>
 
-        <section className="creator-section"><div className="creator-title"><span>04</span><div><h2>저장과 공유</h2><p>문제를 담을 과목과 공개 범위를 정하세요.</p></div></div><label className="creator-field">저장할 과목 <b>필수</b><select value={draft.projectId} onChange={(e) => update('projectId', e.target.value)}><option value="">과목 선택</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.title}</option>)}</select></label><div className="share-options">{([{key:'private',title:'나만 보기',desc:'작성자만 조회·수정할 수 있어요.'},{key:'all',title:'전체 학생',desc:'등록된 모든 학생이 풀 수 있어요.'},{key:'selected',title:'선택한 학생',desc:'고른 학생만 조회·풀이할 수 있어요.'}] as const).map((item) => <button type="button" key={item.key} className={draft.share === item.key ? 'selected' : ''} onClick={() => update('share', item.key)}><span>{draft.share === item.key ? '●' : '○'}</span><div><strong>{item.title}</strong><small>{item.desc}</small></div></button>)}</div>
+        <section className="creator-section"><div className="creator-title"><span>04</span><div><h2>저장과 공유</h2><p>문제를 담을 과목과 공개 범위를 정하세요.</p></div></div><label className="creator-field">저장할 과목 <b>필수</b><select value={draft.projectId} onChange={(e) => update('projectId', e.target.value)}><option value="">과목 선택</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.title}</option>)}</select></label><div className="share-options">{([{key:'private',title:'나만 보기',desc:'작성자만 조회·수정할 수 있어요.'},{key:'all',title:'전체 신학원생',desc:'등록된 모든 신학원생이 풀 수 있어요.'},{key:'selected',title:'선택한 신학원생',desc:'고른 신학원생만 조회·풀이할 수 있어요.'}] as const).map((item) => <button type="button" key={item.key} className={draft.share === item.key ? 'selected' : ''} onClick={() => update('share', item.key)}><span>{draft.share === item.key ? '●' : '○'}</span><div><strong>{item.title}</strong><small>{item.desc}</small></div></button>)}</div>
           {draft.share === 'selected' && <div className="creator-field plain">
-            공유할 학생 <b>필수</b>
+            공유할 신학원생 <b>필수</b>
             <input value={shareSearch} onChange={(e) => setShareSearch(e.target.value)} placeholder="이름으로 검색" style={{ marginTop: 8, marginBottom: 8 }} />
             <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
               {shareUsers.filter((u) => u.displayName.toLowerCase().includes(shareSearch.toLowerCase())).map((u) => (
@@ -134,7 +134,7 @@ export default function NewProblemPage() {
                   {u.displayName}
                 </label>
               ))}
-              {shareUsers.length === 0 && <small>공유 가능한 학생이 없습니다.</small>}
+              {shareUsers.length === 0 && <small>공유 가능한 신학원생이 없습니다.</small>}
             </div>
           </div>}
         </section>
@@ -144,7 +144,7 @@ export default function NewProblemPage() {
         <div className="creator-actions"><button type="button" className="draft-button" onClick={saveDraft}>임시저장</button><button type="submit" className="primary-button" disabled={saving || loading}>{saving ? '저장 중…' : '문제 저장'} {!saving && <Icon name="arrow"/>}</button></div>
       </form>
 
-      <aside className="preview-column"><div className="preview-label"><span>실시간 미리보기</span><small>학습자에게 보이는 화면</small></div><article className="problem-preview"><span className="preview-bookmark"/><div className="preview-meta"><span>{typeInfo[draft.type].badge}</span><span>{selectedProject?.title || '과목'} · {draft.session ? `${draft.session}강` : '회차'}</span></div><h2>{draft.question || '입력한 문제가 이곳에 표시됩니다.'}</h2>{draft.type === 'mcq' ? <div className="preview-options">{draft.options.map((item,index) => <div key={index} className={draft.correctIndex === index && item ? 'answer' : ''}><span>{index+1}</span>{item || `${index+1}번 보기`}</div>)}</div> : <div className="preview-answer"><small>정답</small><strong>{answerLabel}</strong>{draft.type === 'short' && draft.keywords && <p>인정 키워드 · {draft.keywords}</p>}</div>}<div className="preview-reference"><small>학습 레퍼런스</small><strong>{selectedProject?.title || '과목'} · {draft.session ? `${draft.session}강` : '회차'}</strong><p>{[draft.refKind, draft.refDetail].filter(Boolean).join(' · ') || '정답을 다시 확인할 출처'}</p></div></article><div className="policy-note"><strong>공유 설정 안내</strong><p>{draft.share === 'private' ? '저장 후에도 이 문제는 나만 볼 수 있습니다.' : draft.share === 'all' ? '저장하면 전체 학생에게 공유됩니다.' : `저장하면 선택한 ${draft.sharedUserIds.length}명에게만 공유됩니다.`}</p><span>문제 단위 설정이 과목 설정보다 우선합니다.</span></div></aside>
+      <aside className="preview-column"><div className="preview-label"><span>실시간 미리보기</span><small>학습자에게 보이는 화면</small></div><article className="problem-preview"><span className="preview-bookmark"/><div className="preview-meta"><span>{typeInfo[draft.type].badge}</span><span>{selectedProject?.title || '과목'} · {draft.session ? `${draft.session}강` : '회차'}</span></div><h2>{draft.question || '입력한 문제가 이곳에 표시됩니다.'}</h2>{draft.type === 'mcq' ? <div className="preview-options">{draft.options.map((item,index) => <div key={index} className={draft.correctIndex === index && item ? 'answer' : ''}><span>{index+1}</span>{item || `${index+1}번 보기`}</div>)}</div> : <div className="preview-answer"><small>정답</small><strong>{answerLabel}</strong>{draft.type === 'short' && draft.keywords && <p>인정 키워드 · {draft.keywords}</p>}</div>}<div className="preview-reference"><small>학습 레퍼런스</small><strong>{selectedProject?.title || '과목'} · {draft.session ? `${draft.session}강` : '회차'}</strong><p>{[draft.refKind, draft.refDetail].filter(Boolean).join(' · ') || '정답을 다시 확인할 출처'}</p></div></article><div className="policy-note"><strong>공유 설정 안내</strong><p>{draft.share === 'private' ? '저장 후에도 이 문제는 나만 볼 수 있습니다.' : draft.share === 'all' ? '저장하면 전체 신학원생에게 공유됩니다.' : `저장하면 선택한 ${draft.sharedUserIds.length}명에게만 공유됩니다.`}</p><span>문제 단위 설정이 과목 설정보다 우선합니다.</span></div></aside>
     </div>}
     {notice && <div className="toast" role="status">{notice}</div>}
   </main></StudentShell>

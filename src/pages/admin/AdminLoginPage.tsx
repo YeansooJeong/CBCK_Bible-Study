@@ -65,7 +65,7 @@ function AdminLoginPage() {
           </form>
           <div className="auth-meta" style={{ justifyContent: 'center' }}>
             <Link className="admin-link" to="/login">
-              ← 학생 로그인으로
+              ← 신학원생 로그인으로
             </Link>
           </div>
         </section>

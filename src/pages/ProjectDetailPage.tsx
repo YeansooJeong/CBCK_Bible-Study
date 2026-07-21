@@ -228,7 +228,7 @@ function ProjectDetailPage() {
                       <option value="inherit">전체공개</option>
                       <option value="private">비공개</option>
                       <option value="all">전체공개</option>
-                      <option value="selected">선택한 학생</option>
+                      <option value="selected">선택한 신학원생</option>
                     </select>
                     <button
                       type="button"
@@ -254,7 +254,7 @@ function ProjectDetailPage() {
                         {u.displayName}
                       </label>
                     ))}
-                    {shareUsers.length === 0 && <small>공유 가능한 학생이 없습니다.</small>}
+                    {shareUsers.length === 0 && <small>공유 가능한 신학원생이 없습니다.</small>}
                   </div>
                   <div className="inline-actions" style={{ marginTop: 10 }}>
                     <button type="button" className="primary-button" onClick={() => applyProblemShare(problem.id)} disabled={problemShareIds.length === 0}>

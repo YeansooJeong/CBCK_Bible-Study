@@ -9,7 +9,7 @@ import SubjectManagementPanel from '../../components/SubjectManagementPanel'
 const inputClass =
   'w-full rounded-lg border border-neutral-300 px-3 py-2 text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
 
-// 1행: 헤더(name,phone), 2행부터 실제 학생 데이터
+// 1행: 헤더(name,phone), 2행부터 실제 신학원생 데이터
 const STUDENT_SAMPLE_CSV = 'name,phone\n"홍길동","01012345678"\n"김철수","01098765432"\n'
 
 function parseStudentCsv(text: string) {
@@ -151,7 +151,7 @@ function AdminDashboardPage() {
     } catch (err) {
       setCohortError(
         err instanceof ApiError && err.message === 'has_students'
-          ? '이 기수에 등록된 학생이 있어 삭제할 수 없습니다. 먼저 학생을 다른 기수로 옮기거나 삭제해주세요.'
+          ? '이 기수에 등록된 신학원생이 있어 삭제할 수 없습니다. 먼저 신학원생을 다른 기수로 옮기거나 삭제해주세요.'
           : '기수 삭제에 실패했습니다.',
       )
     }
@@ -177,7 +177,7 @@ function AdminDashboardPage() {
         err instanceof Error && err.message === 'header'
           ? '컬럼명(1행)이 올바르지 않습니다. 샘플 양식을 참고해주세요.'
           : err instanceof Error && err.message === 'no_data'
-            ? '2행부터 학생 데이터를 입력해주세요.'
+            ? '2행부터 신학원생 데이터를 입력해주세요.'
             : '일괄 등록에 실패했습니다.',
       )
     }
@@ -197,7 +197,7 @@ function AdminDashboardPage() {
       setStudentError(
         err instanceof ApiError && err.message === 'phone_already_registered'
           ? '이미 등록된 전화번호입니다.'
-          : '학생 등록에 실패했습니다.',
+          : '신학원생 등록에 실패했습니다.',
       )
     }
   }
@@ -222,13 +222,13 @@ function AdminDashboardPage() {
       const { students } = await api.adminListStudents({ adminToken: token }, selectedCohortId)
       setStudents(students)
     } catch {
-      setStudentError('학생 정보 수정에 실패했습니다.')
+      setStudentError('신학원생 정보 수정에 실패했습니다.')
     }
   }
 
   async function handleResetStudent(studentId: string) {
     if (!token) return
-    if (!window.confirm('이 학생의 비밀번호를 초기화하고 대기중 상태로 되돌릴까요? 학생은 다시 최초 인증을 거쳐야 합니다.')) return
+    if (!window.confirm('이 신학원생의 비밀번호를 초기화하고 대기중 상태로 되돌릴까요? 신학원생은 다시 최초 인증을 거쳐야 합니다.')) return
     try {
       await api.adminUpdateStudent({ adminToken: token }, { studentId, resetToPending: true })
       const { students } = await api.adminListStudents({ adminToken: token }, selectedCohortId)
@@ -241,7 +241,7 @@ function AdminDashboardPage() {
   async function handleToggleGeneralAdmin(student: Student) {
     if (!token) return
     const next = !student.is_admin
-    if (!window.confirm(next ? '이 학생에게 일반 Admin 권한을 부여할까요?' : '이 학생의 일반 Admin 권한을 해제할까요?')) return
+    if (!window.confirm(next ? '이 신학원생에게 일반 Admin 권한을 부여할까요?' : '이 신학원생의 일반 Admin 권한을 해제할까요?')) return
     try {
       await api.adminSetStudentRole(token, student.id, next)
       const { students } = await api.adminListStudents({ adminToken: token }, selectedCohortId)
@@ -253,13 +253,13 @@ function AdminDashboardPage() {
 
   async function handleDeleteStudent(studentId: string) {
     if (!token) return
-    if (!window.confirm('이 학생을 삭제할까요? 학생이 만든 프로젝트/문제도 함께 삭제됩니다.')) return
+    if (!window.confirm('이 신학원생을 삭제할까요? 신학원생이 만든 프로젝트/문제도 함께 삭제됩니다.')) return
     try {
       await api.adminDeleteStudent({ adminToken: token }, studentId)
       const { students } = await api.adminListStudents({ adminToken: token }, selectedCohortId)
       setStudents(students)
     } catch {
-      setStudentError('학생 삭제에 실패했습니다.')
+      setStudentError('신학원생 삭제에 실패했습니다.')
     }
   }
 
@@ -341,7 +341,7 @@ function AdminDashboardPage() {
         </section>
 
         <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
-          <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">학생 등록</h2>
+          <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">신학원생 등록</h2>
           {!selectedCohortId ? (
             <p className="text-sm text-neutral-400">먼저 기수를 등록하고 선택해주세요.</p>
           ) : (
@@ -360,7 +360,7 @@ function AdminDashboardPage() {
 
               <div className="mb-6 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
                 <h3 className="mb-2 text-sm font-medium text-neutral-900 dark:text-neutral-50">CSV로 한 번에 등록</h3>
-                <p className="mb-3 text-xs text-neutral-500">1행은 컬럼명(name, phone), 실제 학생은 2행부터 채워주세요.</p>
+                <p className="mb-3 text-xs text-neutral-500">1행은 컬럼명(name, phone), 실제 신학원생은 2행부터 채워주세요.</p>
                 {bulkCsvMessage && <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-300">{bulkCsvMessage}</p>}
                 <div className="flex flex-wrap items-center gap-3">
                   <button
@@ -493,7 +493,7 @@ function AdminDashboardPage() {
                   {students.length === 0 && (
                     <tr>
                       <td colSpan={6} className="py-4 text-center text-neutral-400">
-                        등록된 학생이 없습니다.
+                        등록된 신학원생이 없습니다.
                       </td>
                     </tr>
                   )}

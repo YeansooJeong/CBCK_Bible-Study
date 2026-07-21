@@ -242,7 +242,7 @@ function StudentHomePage() {
         </button>
         {commentPanelOpen && <div className="comment-panel">
           {(commentsByProblem[question.id] ?? []).map((comment) => <div key={comment.id} className="comment-row">
-            <p><strong>{comment.users?.display_name ?? '학생'}</strong> · {editingCommentId === comment.id ? <input className="field" value={editingCommentText} onChange={(e) => setEditingCommentText(e.target.value)} /> : comment.content}</p>
+            <p><strong>{comment.users?.display_name ?? '신학원생'}</strong> · {editingCommentId === comment.id ? <input className="field" value={editingCommentText} onChange={(e) => setEditingCommentText(e.target.value)} /> : comment.content}</p>
             {studentSession.getUser()?.id === comment.author_id && <div className="comment-actions">
               <button type="button" onClick={() => { setEditingCommentId(comment.id); setEditingCommentText(comment.content) }}>{editingCommentId === comment.id ? '수정 중' : '수정'}</button>
               {editingCommentId === comment.id && <button type="button" onClick={() => saveComment(comment.id)}>저장</button>}

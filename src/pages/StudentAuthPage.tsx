@@ -8,7 +8,7 @@ import churchLogo from '../assets/church-logo.png'
 type Step = 'phone' | 'login' | 'activate' | 'not-registered'
 
 const stepMeta: Record<Step, { title: string; subtitle: string; dot: number }> = {
-  phone: { title: '학생 로그인', subtitle: '등록된 휴대전화로 계정을 확인합니다.', dot: 0 },
+  phone: { title: '신학원생 로그인', subtitle: '등록된 휴대전화로 계정을 확인합니다.', dot: 0 },
   login: { title: '비밀번호 입력', subtitle: '안전한 학습 공간으로 이동합니다.', dot: 1 },
   activate: { title: '계정 활성화', subtitle: '본인 확인 후 새 비밀번호를 설정합니다.', dot: 2 },
   'not-registered': { title: '등록 안내', subtitle: '관리자에게 등록을 문의해 주세요.', dot: 0 },
