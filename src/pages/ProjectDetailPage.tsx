@@ -169,6 +169,8 @@ function ProjectDetailPage() {
   const [isOwner, setIsOwner] = useState(false)
   const [comments, setComments] = useState<Record<string, ProblemComment[]>>({})
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
+  const [editingCommentText, setEditingCommentText] = useState('')
   const [csvMessage, setCsvMessage] = useState<string | null>(null)
   const [csvFileName, setCsvFileName] = useState<string | null>(null)
   const [shareUsers, setShareUsers] = useState<Array<{ id: string; displayName: string }>>([])
@@ -259,6 +261,19 @@ function ProjectDetailPage() {
     if (!token || !commentDrafts[problemId]?.trim()) return
     await api.createProblemComment(token, { problemId, content: commentDrafts[problemId] })
     setCommentDrafts((current) => ({ ...current, [problemId]: '' }))
+    await loadComments(problemId)
+  }
+
+  async function saveComment(commentId: string, problemId: string) {
+    if (!token || !editingCommentText.trim()) return
+    await api.updateProblemComment(token, { commentId, content: editingCommentText })
+    setEditingCommentId(null)
+    await loadComments(problemId)
+  }
+
+  async function removeComment(commentId: string, problemId: string) {
+    if (!token || !window.confirm('댓글을 삭제할까요?')) return
+    await api.deleteProblemComment(token, commentId)
     await loadComments(problemId)
   }
 
@@ -435,7 +450,7 @@ function ProjectDetailPage() {
               )}
               <div className="mt-3 border-t border-neutral-200 pt-3 dark:border-neutral-800">
                 <button type="button" className="text-xs text-accent hover:underline" onClick={() => loadComments(problem.id)}>댓글 불러오기</button>
-                {(comments[problem.id] ?? []).map((comment) => <p key={comment.id} className="mt-2 rounded bg-neutral-50 p-2 text-xs dark:bg-neutral-900"><span className="font-medium">{comment.users?.display_name ?? '학생'}</span> · {comment.content}</p>)}
+                {(comments[problem.id] ?? []).map((comment) => <div key={comment.id} className="mt-2 rounded bg-neutral-50 p-2 text-xs dark:bg-neutral-900"><p><span className="font-medium">{comment.users?.display_name ?? '학생'}</span> · {editingCommentId === comment.id ? <input className="field ml-1" value={editingCommentText} onChange={(e) => setEditingCommentText(e.target.value)} /> : comment.content}</p>{studentSession.getUser()?.id === comment.author_id && <div className="mt-1 flex gap-2"><button type="button" className="text-accent" onClick={() => { setEditingCommentId(comment.id); setEditingCommentText(comment.content) }}>{editingCommentId === comment.id ? '수정 중' : '수정'}</button>{editingCommentId === comment.id && <button type="button" className="text-accent" onClick={() => saveComment(comment.id, problem.id)}>저장</button>}<button type="button" className="text-red-500" onClick={() => removeComment(comment.id, problem.id)}>삭제</button></div>}</div>)}
                 <div className="mt-2 flex gap-2"><input className="field min-w-0 flex-1" placeholder="문제에 댓글 남기기" value={commentDrafts[problem.id] ?? ''} onChange={(e) => setCommentDrafts((current) => ({ ...current, [problem.id]: e.target.value }))} /><button type="button" onClick={() => submitComment(problem.id)} className="primary-button whitespace-nowrap">댓글 작성</button></div>
               </div>
             </li>

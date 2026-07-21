@@ -241,6 +241,8 @@ export const api = {
 
   listProblemComments: (userToken: string, problemId: string) => callFunction<{ comments: ProblemComment[] }>(`list-problem-comments?problemId=${problemId}`, { userToken, method: 'GET' }),
   createProblemComment: (userToken: string, payload: { problemId: string; content: string }) => callFunction<{ success: true; comment: ProblemComment }>('create-problem-comment', { userToken, body: payload }),
+  updateProblemComment: (userToken: string, payload: { commentId: string; content: string }) => callFunction<{ success: true }>('update-problem-comment', { userToken, body: payload }),
+  deleteProblemComment: (userToken: string, commentId: string) => callFunction<{ success: true }>('delete-problem-comment', { userToken, body: { commentId } }),
 
   getActiveQuizSession: (userToken: string) =>
     callFunction<{ session: { sessionId: string; problems: Problem[]; resumeIndex: number } | null }>(
