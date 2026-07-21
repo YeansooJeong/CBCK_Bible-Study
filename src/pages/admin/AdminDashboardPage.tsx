@@ -390,7 +390,8 @@ function AdminDashboardPage() {
                 </div>
               </div>
 
-              <table className="w-full text-left text-sm">
+              <div className="-mx-2 overflow-x-auto px-2">
+              <table className="min-w-[760px] w-full text-left text-sm">
                 <thead>
                   <tr className="text-neutral-400">
                     <th className="pb-2">이름</th>
@@ -470,7 +471,7 @@ function AdminDashboardPage() {
                         </td>
                         <td className="py-2 text-neutral-500">{new Date(student.created_at).toLocaleDateString('ko-KR')}</td>
                         <td className="py-2">
-                          <div className="flex gap-2 whitespace-nowrap">
+                          <div className="flex max-w-[260px] flex-wrap gap-x-3 gap-y-1 text-xs sm:max-w-none sm:flex-nowrap sm:text-sm">
                             <button type="button" onClick={() => startEditStudent(student)} className="text-accent hover:underline">
                               수정
                             </button>
@@ -497,6 +498,7 @@ function AdminDashboardPage() {
                   )}
                 </tbody>
               </table>
+              </div>
             </>
           )}
         </section>
