@@ -123,9 +123,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .auth-intro h1 { font-size:clamp(31px,4vw,48px); line-height:1.15; letter-spacing:-.06em; margin:18px 0; }
 .auth-intro h1 .accent-text { color:var(--sage); }
 .auth-intro-copy>p { max-width:410px; color:var(--muted); line-height:1.75; margin:0; }
-.auth-bullets { display:grid; gap:12px; margin-top:34px; color:#4f6056; font-size:14px; }
-.auth-bullets span { display:flex; gap:10px; align-items:center; }
-.auth-bullets .dot { width:8px; height:8px; background:var(--gold); border-radius:50%; flex:0 0 auto; }
+.auth-intro-copy>p.lede { max-width:none; white-space:nowrap; }
+.auth-verse { margin:34px 0 0; padding:20px 24px; border-left:3px solid var(--gold); background:#fbfaf6; border-radius:0 10px 10px 0; color:#4f6056; font-size:14px; line-height:1.75; max-width:460px; }
+.auth-verse cite { display:block; margin-top:10px; font-style:normal; font-weight:600; color:var(--forest); }
 .auth-card { background:#fff; border:1px solid var(--line); border-radius:22px; padding:34px; box-shadow:0 18px 50px rgba(36,72,58,.1); }
 .auth-card h2 { margin:0; font-size:24px; letter-spacing:-.04em; }
 .auth-card .sub { color:var(--muted); font-size:13px; line-height:1.6; margin:8px 0 22px; }
@@ -139,4 +139,4 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .auth-meta { display:flex; justify-content:space-between; align-items:center; margin-top:22px; color:var(--muted); font-size:12px; }
 .admin-link { color:var(--forest); text-decoration:none; font-weight:700; }
 .admin-link:hover { text-decoration:underline; }
-@media(max-width:760px){ .auth-shell { padding:20px; }.auth-frame { grid-template-columns:1fr!important; }.auth-intro { padding:10px 4px; }.auth-intro-copy { margin-top:24px; }.auth-intro h1 { font-size:34px; }.auth-bullets { display:none; }.auth-card { padding:25px; } }
+@media(max-width:760px){ .auth-shell { padding:20px; }.auth-frame { grid-template-columns:1fr!important; }.auth-intro { padding:10px 4px; }.auth-intro-copy { margin-top:24px; }.auth-intro h1 { font-size:34px; }.auth-intro-copy>p.lede { white-space:normal; }.auth-verse { display:none; }.auth-card { padding:25px; } }

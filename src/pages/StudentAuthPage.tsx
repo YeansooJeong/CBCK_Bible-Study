@@ -126,21 +126,11 @@ function StudentAuthPage() {
               <br />
               <span className="accent-text">다시 꺼내는</span> 시간
             </h1>
-            <p>나만의 문제를 만들고, 반복해서 풀며 말씀을 더 깊이 기억해 보세요.</p>
-            <div className="auth-bullets">
-              <span>
-                <i className="dot" />
-                개인 문제은행으로 차곡차곡
-              </span>
-              <span>
-                <i className="dot" />
-                오늘의 학습 흐름을 한눈에
-              </span>
-              <span>
-                <i className="dot" />
-                안전한 계정 인증과 세션 관리
-              </span>
-            </div>
+            <p className="lede">나만의 문제를 만들고, 반복해서 풀며 말씀을 더 깊이 기억해 보세요.</p>
+            <blockquote className="auth-verse">
+              모든 성경기록은 하나님의 영감에 의해 주어진 것으로 교리와 책망과 바로잡음과 의로 교육하기에 유익하니
+              <cite>딤후 3:16</cite>
+            </blockquote>
           </div>
         </section>
 
