@@ -40,7 +40,7 @@ Deno.serve(async (req) => {
 
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, display_name, password_hash, status, failed_attempts, locked_until')
+      .select('id, display_name, password_hash, status, failed_attempts, locked_until, is_admin')
       .eq('phone_hash', phoneHash)
       .maybeSingle()
     if (userError) throw userError
@@ -80,10 +80,19 @@ Deno.serve(async (req) => {
       .update({ failed_attempts: 0, locked_until: null })
       .eq('id', user.id)
 
-    const token = await createSessionToken(user.id, Deno.env.get('SESSION_JWT_SECRET')!)
+    const token = await createSessionToken(
+      user.id,
+      Deno.env.get('SESSION_JWT_SECRET')!,
+      undefined,
+      user.is_admin ? 'general_admin' : undefined,
+    )
 
     return new Response(
-      JSON.stringify({ success: true, token, user: { id: user.id, displayName: user.display_name } }),
+      JSON.stringify({
+        success: true,
+        token,
+        user: { id: user.id, displayName: user.display_name, isAdmin: user.is_admin },
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   } catch (err) {

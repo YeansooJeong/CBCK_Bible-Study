@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-import { requireAdmin } from '../_shared/adminAuth.ts'
+import { requireSuperOrGeneralAdmin } from '../_shared/adminAuth.ts'
 
 const MAX_STUDENTS_PER_BATCH = 200
 
@@ -8,8 +8,8 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const adminId = await requireAdmin(req, Deno.env.get('SESSION_JWT_SECRET')!)
-    if (!adminId) {
+    const actor = await requireSuperOrGeneralAdmin(req, Deno.env.get('SESSION_JWT_SECRET')!)
+    if (!actor) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

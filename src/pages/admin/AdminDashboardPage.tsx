@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api, ApiError, type Cohort, type Student } from '../../lib/api'
 import { adminSession } from '../../lib/session'
 import { parseCsvLine, downloadCsv } from '../../lib/csv'
+import ProblemModerationPanel from '../../components/ProblemModerationPanel'
 
 const inputClass =
   'w-full rounded-lg border border-neutral-300 px-3 py-2 text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
@@ -80,7 +81,7 @@ function AdminDashboardPage() {
   }
 
   async function loadCohorts(adminToken: string) {
-    const { cohorts } = await api.adminListCohorts(adminToken)
+    const { cohorts } = await api.adminListCohorts({ adminToken })
     setCohorts(cohorts)
     if (cohorts.length > 0 && !selectedCohortId) setSelectedCohortId(cohorts[0].id)
   }
@@ -92,7 +93,7 @@ function AdminDashboardPage() {
 
   useEffect(() => {
     if (token && selectedCohortId) {
-      api.adminListStudents(token, selectedCohortId).then(({ students }) => setStudents(students))
+      api.adminListStudents({ adminToken: token }, selectedCohortId).then(({ students }) => setStudents(students))
     }
   }, [token, selectedCohortId])
 
@@ -162,13 +163,13 @@ function AdminDashboardPage() {
     setBulkCsvFileName(file.name)
     try {
       const students = parseStudentCsv(await file.text())
-      const { created, failed } = await api.bulkCreateStudents(token, { cohortId: selectedCohortId, students })
+      const { created, failed } = await api.bulkCreateStudents({ adminToken: token }, { cohortId: selectedCohortId, students })
       setBulkCsvMessage(
         failed.length === 0
           ? `${created}명이 등록되었습니다.`
           : `${created}명 등록 완료, ${failed.length}명 실패 (행: ${failed.map((f) => f.row).join(', ')})`,
       )
-      const { students: refreshed } = await api.adminListStudents(token, selectedCohortId)
+      const { students: refreshed } = await api.adminListStudents({ adminToken: token }, selectedCohortId)
       setStudents(refreshed)
     } catch (err) {
       setBulkCsvMessage(
@@ -186,10 +187,10 @@ function AdminDashboardPage() {
     if (!token || !selectedCohortId) return
     setStudentError(null)
     try {
-      await api.adminCreateStudent(token, { name: studentName, phone: studentPhone, cohortId: selectedCohortId })
+      await api.adminCreateStudent({ adminToken: token }, { name: studentName, phone: studentPhone, cohortId: selectedCohortId })
       setStudentName('')
       setStudentPhone('')
-      const { students } = await api.adminListStudents(token, selectedCohortId)
+      const { students } = await api.adminListStudents({ adminToken: token }, selectedCohortId)
       setStudents(students)
     } catch (err) {
       setStudentError(
@@ -215,9 +216,9 @@ function AdminDashboardPage() {
   async function handleSaveStudent(studentId: string) {
     if (!token) return
     try {
-      await api.adminUpdateStudent(token, { studentId, name: editName, cohortId: editCohortId })
+      await api.adminUpdateStudent({ adminToken: token }, { studentId, name: editName, cohortId: editCohortId })
       setEditingStudentId(null)
-      const { students } = await api.adminListStudents(token, selectedCohortId)
+      const { students } = await api.adminListStudents({ adminToken: token }, selectedCohortId)
       setStudents(students)
     } catch {
       setStudentError('학생 정보 수정에 실패했습니다.')
@@ -228,11 +229,24 @@ function AdminDashboardPage() {
     if (!token) return
     if (!window.confirm('이 학생의 비밀번호를 초기화하고 대기중 상태로 되돌릴까요? 학생은 다시 최초 인증을 거쳐야 합니다.')) return
     try {
-      await api.adminUpdateStudent(token, { studentId, resetToPending: true })
-      const { students } = await api.adminListStudents(token, selectedCohortId)
+      await api.adminUpdateStudent({ adminToken: token }, { studentId, resetToPending: true })
+      const { students } = await api.adminListStudents({ adminToken: token }, selectedCohortId)
       setStudents(students)
     } catch {
       setStudentError('비밀번호 초기화에 실패했습니다.')
+    }
+  }
+
+  async function handleToggleGeneralAdmin(student: Student) {
+    if (!token) return
+    const next = !student.is_admin
+    if (!window.confirm(next ? '이 학생에게 일반 Admin 권한을 부여할까요?' : '이 학생의 일반 Admin 권한을 해제할까요?')) return
+    try {
+      await api.adminSetStudentRole(token, student.id, next)
+      const { students } = await api.adminListStudents({ adminToken: token }, selectedCohortId)
+      setStudents(students)
+    } catch {
+      setStudentError('권한 변경에 실패했습니다.')
     }
   }
 
@@ -240,8 +254,8 @@ function AdminDashboardPage() {
     if (!token) return
     if (!window.confirm('이 학생을 삭제할까요? 학생이 만든 프로젝트/문제도 함께 삭제됩니다.')) return
     try {
-      await api.adminDeleteStudent(token, studentId)
-      const { students } = await api.adminListStudents(token, selectedCohortId)
+      await api.adminDeleteStudent({ adminToken: token }, studentId)
+      const { students } = await api.adminListStudents({ adminToken: token }, selectedCohortId)
       setStudents(students)
     } catch {
       setStudentError('학생 삭제에 실패했습니다.')
@@ -439,15 +453,20 @@ function AdminDashboardPage() {
                           )}
                         </td>
                         <td className="py-2">
-                          <span
-                            className={
-                              student.status === 'active'
-                                ? 'rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/30 dark:text-green-400'
-                                : 'rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
-                            }
-                          >
-                            {student.status === 'active' ? '활성화' : '대기중'}
-                          </span>
+                          <div className="flex flex-wrap gap-1">
+                            <span
+                              className={
+                                student.status === 'active'
+                                  ? 'rounded-full bg-green-100 px-2 py-0.5 text-xs text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                  : 'rounded-full bg-neutral-100 px-2 py-0.5 text-xs text-neutral-600 dark:bg-neutral-800 dark:text-neutral-400'
+                              }
+                            >
+                              {student.status === 'active' ? '활성화' : '대기중'}
+                            </span>
+                            {student.is_admin && (
+                              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs text-accent-dark">일반 Admin</span>
+                            )}
+                          </div>
                         </td>
                         <td className="py-2 text-neutral-500">{new Date(student.created_at).toLocaleDateString('ko-KR')}</td>
                         <td className="py-2">
@@ -457,6 +476,9 @@ function AdminDashboardPage() {
                             </button>
                             <button type="button" onClick={() => handleResetStudent(student.id)} className="text-neutral-500 hover:underline">
                               비밀번호 초기화
+                            </button>
+                            <button type="button" onClick={() => handleToggleGeneralAdmin(student)} className="text-accent hover:underline">
+                              {student.is_admin ? 'Admin 해제' : 'Admin 지정'}
                             </button>
                             <button type="button" onClick={() => handleDeleteStudent(student.id)} className="text-red-500 hover:underline">
                               삭제
@@ -478,6 +500,8 @@ function AdminDashboardPage() {
             </>
           )}
         </section>
+
+        <ProblemModerationPanel actor={{ adminToken: token }} />
 
         <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
           <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">개인정보 접근 이력</h2>

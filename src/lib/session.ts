@@ -11,6 +11,7 @@ export const adminSession = {
 export interface StudentUser {
   id: string
   displayName: string
+  isAdmin?: boolean
 }
 
 export const studentSession = {

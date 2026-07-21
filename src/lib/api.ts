@@ -46,6 +46,24 @@ export interface Student {
   status: 'pending' | 'active'
   cohort_id: string
   created_at: string
+  is_admin: boolean
+}
+
+export interface ModeratedProblem {
+  id: string
+  projectId: string
+  projectTitle: string
+  ownerName: string
+  type: ProblemType
+  question: string
+  options: Record<string, string> | null
+  answer: string
+  keywords: string | null
+  refCourse: string | null
+  refSession: string | null
+  refLocation: string | null
+  shareScope: ProblemShareScope
+  createdAt: string
 }
 
 export type ShareScope = 'private' | 'all' | 'selected'
@@ -89,18 +107,15 @@ export const api = {
   }) => callFunction<{ success: true }>('activate-account', { body: payload }),
 
   login: (phone: string, password: string) =>
-    callFunction<{ success: true; token: string; user: { id: string; displayName: string } }>('login', {
+    callFunction<{ success: true; token: string; user: { id: string; displayName: string; isAdmin: boolean } }>('login', {
       body: { phone, password },
     }),
 
   adminLogin: (loginId: string, password: string) =>
     callFunction<{ success: true; token: string }>('admin-login', { body: { loginId, password } }),
 
-  setupAdmin: (password: string) =>
-    callFunction<{ success: true }>('setup-admin', { body: { loginId: 'admin', password } }),
-
-  adminListCohorts: (adminToken: string) =>
-    callFunction<{ cohorts: Cohort[] }>('admin-list-cohorts', { adminToken, method: 'GET' }),
+  adminListCohorts: (actor: { adminToken?: string; userToken?: string }) =>
+    callFunction<{ cohorts: Cohort[] }>('admin-list-cohorts', { ...actor, method: 'GET' }),
 
   adminCreateCohort: (
     adminToken: string,
@@ -116,32 +131,56 @@ export const api = {
     callFunction<{ success: true }>('admin-delete-cohort', { adminToken, body: { cohortId } }),
 
   bulkCreateStudents: (
-    adminToken: string,
+    actor: { adminToken?: string; userToken?: string },
     payload: { cohortId: string; students: Array<{ name: string; phone: string }> },
   ) =>
     callFunction<{ success: true; created: number; failed: Array<{ row: number; name: string; phone: string; reason: string }> }>(
       'bulk-create-students',
-      { adminToken, body: payload },
+      { ...actor, body: payload },
     ),
 
-  adminListStudents: (adminToken: string, cohortId?: string) =>
+  adminSetStudentRole: (adminToken: string, studentId: string, isAdmin: boolean) =>
+    callFunction<{ success: true; student: Student }>('admin-set-student-role', { adminToken, body: { studentId, isAdmin } }),
+
+  adminListProblems: (actor: { adminToken?: string; userToken?: string }) =>
+    callFunction<{ problems: ModeratedProblem[] }>('admin-list-problems', { ...actor, method: 'GET' }),
+
+  adminUpdateProblem: (
+    actor: { adminToken?: string; userToken?: string },
+    payload: {
+      problemId: string
+      type?: ProblemType
+      question?: string
+      options?: Record<string, string> | null
+      answer?: string
+      keywords?: string | null
+      refCourse?: string | null
+      refSession?: string | null
+      refLocation?: string | null
+    },
+  ) => callFunction<{ success: true }>('admin-update-problem', { ...actor, body: payload }),
+
+  adminDeleteProblem: (actor: { adminToken?: string; userToken?: string }, problemId: string) =>
+    callFunction<{ success: true }>('admin-delete-problem', { ...actor, body: { problemId } }),
+
+  adminListStudents: (actor: { adminToken?: string; userToken?: string }, cohortId?: string) =>
     callFunction<{ students: Student[] }>(
       `admin-list-students${cohortId ? `?cohortId=${cohortId}` : ''}`,
-      { adminToken, method: 'GET' },
+      { ...actor, method: 'GET' },
     ),
 
   adminCreateStudent: (
-    adminToken: string,
+    actor: { adminToken?: string; userToken?: string },
     payload: { name: string; phone: string; cohortId: string; displayName?: string },
-  ) => callFunction<{ success: true; student: Student }>('admin-create-student', { adminToken, body: payload }),
+  ) => callFunction<{ success: true; student: Student }>('admin-create-student', { ...actor, body: payload }),
 
   adminUpdateStudent: (
-    adminToken: string,
+    actor: { adminToken?: string; userToken?: string },
     payload: { studentId: string; name?: string; displayName?: string; cohortId?: string; resetToPending?: boolean },
-  ) => callFunction<{ success: true; student: Student }>('admin-update-student', { adminToken, body: payload }),
+  ) => callFunction<{ success: true; student: Student }>('admin-update-student', { ...actor, body: payload }),
 
-  adminDeleteStudent: (adminToken: string, studentId: string) =>
-    callFunction<{ success: true }>('admin-delete-student', { adminToken, body: { studentId } }),
+  adminDeleteStudent: (actor: { adminToken?: string; userToken?: string }, studentId: string) =>
+    callFunction<{ success: true }>('admin-delete-student', { ...actor, body: { studentId } }),
 
   adminViewStudentPhone: (adminToken: string, studentId: string) =>
     callFunction<{ success: true; phone: string }>('admin-view-student-phone', { adminToken, body: { studentId } }),

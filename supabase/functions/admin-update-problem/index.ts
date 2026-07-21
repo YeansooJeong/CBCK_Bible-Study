@@ -2,6 +2,9 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { requireSuperOrGeneralAdmin } from '../_shared/adminAuth.ts'
 
+const VALID_TYPES = ['mcq', 'short', 'bible']
+
+// 슈퍼/일반 admin의 문제 모더레이션(소유권 무관하게 내용 수정).
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -14,9 +17,15 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { studentId, name, displayName, cohortId, resetToPending } = await req.json()
-    if (!studentId) {
+    const { problemId, type, question, options, answer, keywords, refCourse, refSession, refLocation } = await req.json()
+    if (!problemId) {
       return new Response(JSON.stringify({ error: 'missing_fields' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    if (type && !VALID_TYPES.includes(type)) {
+      return new Response(JSON.stringify({ error: 'invalid_type' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -28,15 +37,14 @@ Deno.serve(async (req) => {
     )
 
     const updates: Record<string, unknown> = {}
-    if (name !== undefined) updates.name = name
-    if (displayName !== undefined) updates.display_name = displayName
-    if (cohortId !== undefined) updates.cohort_id = cohortId
-    if (resetToPending) {
-      updates.status = 'pending'
-      updates.password_hash = ''
-      updates.failed_attempts = 0
-      updates.locked_until = null
-    }
+    if (type !== undefined) updates.type = type
+    if (question !== undefined) updates.question = question
+    if (options !== undefined) updates.options = options
+    if (answer !== undefined) updates.answer = answer
+    if (keywords !== undefined) updates.keywords = keywords
+    if (refCourse !== undefined) updates.ref_course = refCourse
+    if (refSession !== undefined) updates.ref_session = refSession
+    if (refLocation !== undefined) updates.ref_location = refLocation
 
     if (Object.keys(updates).length === 0) {
       return new Response(JSON.stringify({ error: 'no_updates' }), {
@@ -45,21 +53,21 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { data: student, error } = await supabase
-      .from('users')
+    const { data: problem, error } = await supabase
+      .from('problems')
       .update(updates)
-      .eq('id', studentId)
-      .select('id, name, display_name, status, cohort_id, created_at')
+      .eq('id', problemId)
+      .select('id')
       .maybeSingle()
     if (error) throw error
-    if (!student) {
+    if (!problem) {
       return new Response(JSON.stringify({ error: 'not_found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    return new Response(JSON.stringify({ success: true, student }), {
+    return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {

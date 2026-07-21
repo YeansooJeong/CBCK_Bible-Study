@@ -24,6 +24,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
   const isHome = location.pathname === '/home'
   const isOwnedProjects = location.pathname === '/projects' && location.search !== '?scope=shared'
   const isSharedProjects = location.pathname === '/projects' && location.search === '?scope=shared'
+  const isManage = location.pathname === '/manage'
 
   return <div className="student-app">
     <header className="student-topbar">
@@ -33,6 +34,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
         <Link to="/home" state={{ openStudy: true }}>학습하기</Link>
         <Link to="/projects" className={isOwnedProjects ? 'active' : ''}>내 문제함</Link>
         <Link to="/projects?scope=shared" className={isSharedProjects ? 'active' : ''}>공유 문제</Link>
+        {user?.isAdmin && <Link to="/manage" className={isManage ? 'active' : ''}>관리</Link>}
       </nav>
       <div className="student-profile">
         <button type="button" className="avatar" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-haspopup="true">

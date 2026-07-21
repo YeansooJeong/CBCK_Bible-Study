@@ -1,21 +1,22 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-import { requireSuperOrGeneralAdmin } from '../_shared/adminAuth.ts'
+import { requireAdmin } from '../_shared/adminAuth.ts'
 
+// 슈퍼 admin만 학생에게 일반 admin 권한을 부여/해제할 수 있다.
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const actor = await requireSuperOrGeneralAdmin(req, Deno.env.get('SESSION_JWT_SECRET')!)
-    if (!actor) {
+    const adminId = await requireAdmin(req, Deno.env.get('SESSION_JWT_SECRET')!)
+    if (!adminId) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const { studentId, name, displayName, cohortId, resetToPending } = await req.json()
-    if (!studentId) {
+    const { studentId, isAdmin } = await req.json()
+    if (!studentId || typeof isAdmin !== 'boolean') {
       return new Response(JSON.stringify({ error: 'missing_fields' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -27,29 +28,11 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    const updates: Record<string, unknown> = {}
-    if (name !== undefined) updates.name = name
-    if (displayName !== undefined) updates.display_name = displayName
-    if (cohortId !== undefined) updates.cohort_id = cohortId
-    if (resetToPending) {
-      updates.status = 'pending'
-      updates.password_hash = ''
-      updates.failed_attempts = 0
-      updates.locked_until = null
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return new Response(JSON.stringify({ error: 'no_updates' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
     const { data: student, error } = await supabase
       .from('users')
-      .update(updates)
+      .update({ is_admin: isAdmin })
       .eq('id', studentId)
-      .select('id, name, display_name, status, cohort_id, created_at')
+      .select('id, name, display_name, is_admin')
       .maybeSingle()
     if (error) throw error
     if (!student) {

@@ -23,14 +23,14 @@ async function hmacKey(secret: string): Promise<CryptoKey> {
 export interface SessionPayload {
   sub: string
   exp: number
-  role?: 'admin'
+  role?: 'admin' | 'general_admin'
 }
 
 export async function createSessionToken(
   userId: string,
   secret: string,
   ttlSeconds = 60 * 60 * 24 * 7,
-  role?: 'admin',
+  role?: 'admin' | 'general_admin',
 ): Promise<string> {
   const payload: SessionPayload = { sub: userId, exp: Math.floor(Date.now() / 1000) + ttlSeconds, role }
   const payloadB64 = base64url(new TextEncoder().encode(JSON.stringify(payload)))

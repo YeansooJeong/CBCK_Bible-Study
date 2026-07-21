@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { requireSuperOrGeneralAdmin } from '../_shared/adminAuth.ts'
 
+// 슈퍼/일반 admin의 문제 모더레이션(소유권 무관하게 삭제).
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -14,18 +15,23 @@ Deno.serve(async (req) => {
       })
     }
 
+    const { problemId } = await req.json()
+    if (!problemId) {
+      return new Response(JSON.stringify({ error: 'missing_fields' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
-    const { data: cohorts, error } = await supabase
-      .from('cohorts')
-      .select('id, name, staff_name, leader_name, kjv_year')
-      .order('name')
+    const { error } = await supabase.from('problems').delete().eq('id', problemId)
     if (error) throw error
 
-    return new Response(JSON.stringify({ cohorts }), {
+    return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {

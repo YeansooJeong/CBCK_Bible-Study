@@ -1,13 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-import { requireAdmin } from '../_shared/adminAuth.ts'
+import { requireSuperOrGeneralAdmin } from '../_shared/adminAuth.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const adminId = await requireAdmin(req, Deno.env.get('SESSION_JWT_SECRET')!)
-    if (!adminId) {
+    const actor = await requireSuperOrGeneralAdmin(req, Deno.env.get('SESSION_JWT_SECRET')!)
+    if (!actor) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -24,7 +24,7 @@ Deno.serve(async (req) => {
 
     let query = supabase
       .from('users')
-      .select('id, name, display_name, status, cohort_id, created_at')
+      .select('id, name, display_name, status, cohort_id, created_at, is_admin')
       .order('created_at', { ascending: false })
     if (cohortId) query = query.eq('cohort_id', cohortId)
 
