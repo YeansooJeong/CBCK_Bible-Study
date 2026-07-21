@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, type Problem, type ProblemShareScope, type ProblemType, type Project, type ShareScope } from '../lib/api'
+import { api, type Problem, type ProblemComment, type ProblemShareScope, type ProblemType, type Project, type ShareScope } from '../lib/api'
 import { studentSession } from '../lib/session'
 import { parseCsvLine, downloadCsv } from '../lib/csv'
 import StudentShell, { Icon } from '../components/StudentShell'
@@ -167,6 +167,8 @@ function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [problems, setProblems] = useState<Problem[]>([])
   const [isOwner, setIsOwner] = useState(false)
+  const [comments, setComments] = useState<Record<string, ProblemComment[]>>({})
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({})
   const [csvMessage, setCsvMessage] = useState<string | null>(null)
   const [csvFileName, setCsvFileName] = useState<string | null>(null)
   const [shareUsers, setShareUsers] = useState<Array<{ id: string; displayName: string }>>([])
@@ -245,6 +247,19 @@ function ProjectDetailPage() {
     if (!token || !projectId) return
     await api.deleteProject(token, projectId)
     navigate('/projects')
+  }
+
+  async function loadComments(problemId: string) {
+    if (!token) return
+    const { comments: rows } = await api.listProblemComments(token, problemId)
+    setComments((current) => ({ ...current, [problemId]: rows }))
+  }
+
+  async function submitComment(problemId: string) {
+    if (!token || !commentDrafts[problemId]?.trim()) return
+    await api.createProblemComment(token, { problemId, content: commentDrafts[problemId] })
+    setCommentDrafts((current) => ({ ...current, [problemId]: '' }))
+    await loadComments(problemId)
   }
 
   if (!token) return null
@@ -418,6 +433,11 @@ function ProjectDetailPage() {
                   </div>
                 </div>
               )}
+              <div className="mt-3 border-t border-neutral-200 pt-3 dark:border-neutral-800">
+                <button type="button" className="text-xs text-accent hover:underline" onClick={() => loadComments(problem.id)}>댓글 불러오기</button>
+                {(comments[problem.id] ?? []).map((comment) => <p key={comment.id} className="mt-2 rounded bg-neutral-50 p-2 text-xs dark:bg-neutral-900"><span className="font-medium">{comment.users?.display_name ?? '학생'}</span> · {comment.content}</p>)}
+                <div className="mt-2 flex gap-2"><input className="field min-w-0 flex-1" placeholder="문제에 댓글 남기기" value={commentDrafts[problem.id] ?? ''} onChange={(e) => setCommentDrafts((current) => ({ ...current, [problem.id]: e.target.value }))} /><button type="button" onClick={() => submitComment(problem.id)} className="primary-button whitespace-nowrap">댓글 작성</button></div>
+              </div>
             </li>
           ))}
           {problems.length === 0 && <li className="empty-card">등록된 문제가 없습니다.</li>}

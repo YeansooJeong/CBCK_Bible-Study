@@ -94,6 +94,8 @@ export interface Problem {
   created_at: string
 }
 
+export interface ProblemComment { id: string; problem_id: string; author_id: string; content: string; parent_comment_id: string | null; created_at: string; updated_at: string; users?: { display_name: string | null } | null }
+
 export const api = {
   checkPhone: (phone: string) => callFunction<{ registered: boolean; status?: string }>('check-phone', { body: { phone } }),
 
@@ -236,6 +238,9 @@ export const api = {
 
   quizHistory: (userToken: string) =>
     callFunction<{ sessions: Array<{ id: string; started_at: string; total: number; correct: number }> }>('quiz-history', { userToken, method: 'GET' }),
+
+  listProblemComments: (userToken: string, problemId: string) => callFunction<{ comments: ProblemComment[] }>(`list-problem-comments?problemId=${problemId}`, { userToken, method: 'GET' }),
+  createProblemComment: (userToken: string, payload: { problemId: string; content: string }) => callFunction<{ success: true; comment: ProblemComment }>('create-problem-comment', { userToken, body: payload }),
 
   getActiveQuizSession: (userToken: string) =>
     callFunction<{ session: { sessionId: string; problems: Problem[]; resumeIndex: number } | null }>(
