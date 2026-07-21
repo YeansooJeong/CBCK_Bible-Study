@@ -23,23 +23,23 @@ Deno.serve(async (req) => {
     const { data: problems, error } = await supabase
       .from('problems')
       .select(
-        'id, project_id, type, question, options, answer, keywords, ref_course, ref_session, ref_location, share_scope, created_at, projects!inner(title, owner_id)',
+        'id, project_id, author_id, type, question, options, answer, keywords, ref_course, ref_session, ref_kind, ref_detail, share_scope, created_at, projects!inner(title)',
       )
       .order('created_at', { ascending: false })
       .limit(500)
     if (error) throw error
 
-    const ownerIds = Array.from(new Set((problems ?? []).map((p: any) => p.projects?.owner_id).filter(Boolean)))
-    const { data: owners } = ownerIds.length
-      ? await supabase.from('users').select('id, display_name').in('id', ownerIds)
+    const authorIds = Array.from(new Set((problems ?? []).map((p: any) => p.author_id).filter(Boolean)))
+    const { data: authors } = authorIds.length
+      ? await supabase.from('users').select('id, display_name').in('id', authorIds)
       : { data: [] as Array<{ id: string; display_name: string }> }
-    const ownerNameById = new Map((owners ?? []).map((u) => [u.id, u.display_name]))
+    const authorNameById = new Map((authors ?? []).map((u) => [u.id, u.display_name]))
 
     const rows = (problems ?? []).map((p: any) => ({
       id: p.id,
       projectId: p.project_id,
       projectTitle: p.projects?.title ?? '',
-      ownerName: ownerNameById.get(p.projects?.owner_id) ?? '',
+      ownerName: authorNameById.get(p.author_id) ?? '',
       type: p.type,
       question: p.question,
       options: p.options,
@@ -47,7 +47,8 @@ Deno.serve(async (req) => {
       keywords: p.keywords,
       refCourse: p.ref_course,
       refSession: p.ref_session,
-      refLocation: p.ref_location,
+      refKind: p.ref_kind,
+      refDetail: p.ref_detail,
       shareScope: p.share_scope,
       createdAt: p.created_at,
     }))

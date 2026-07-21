@@ -1,28 +1,28 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-import { requireUser } from '../_shared/userAuth.ts'
+import { requireSuperOrGeneralAdmin } from '../_shared/adminAuth.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const userId = await requireUser(req, Deno.env.get('SESSION_JWT_SECRET')!)
-    if (!userId) {
+    const actor = await requireSuperOrGeneralAdmin(req, Deno.env.get('SESSION_JWT_SECRET')!)
+    if (!actor) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const { projectId, title, shareScope, sharedUserIds } = await req.json()
+    const { projectId, title, sessionCount } = await req.json()
     if (!projectId) {
       return new Response(JSON.stringify({ error: 'missing_fields' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-    if (shareScope && !['private', 'all', 'selected'].includes(shareScope)) {
-      return new Response(JSON.stringify({ error: 'invalid_share_scope' }), {
+    if (sessionCount !== undefined && (!Number.isInteger(Number(sessionCount)) || Number(sessionCount) < 1)) {
+      return new Response(JSON.stringify({ error: 'invalid_session_count' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -35,34 +35,24 @@ Deno.serve(async (req) => {
 
     const { data: project, error: fetchError } = await supabase
       .from('projects')
-      .select('owner_id')
+      .select('id')
       .eq('id', projectId)
       .maybeSingle()
     if (fetchError) throw fetchError
-    if (!project || project.owner_id !== userId) {
-      return new Response(JSON.stringify({ error: 'not_found_or_forbidden' }), {
+    if (!project) {
+      return new Response(JSON.stringify({ error: 'not_found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const updates: Record<string, string> = {}
+    const updates: Record<string, unknown> = {}
     if (title !== undefined) updates.title = title
-    if (shareScope !== undefined) updates.share_scope = shareScope
+    if (sessionCount !== undefined) updates.session_count = Number(sessionCount)
 
     if (Object.keys(updates).length > 0) {
       const { error: updateError } = await supabase.from('projects').update(updates).eq('id', projectId)
       if (updateError) throw updateError
-    }
-
-    if (Array.isArray(sharedUserIds)) {
-      await supabase.from('project_shares').delete().eq('project_id', projectId)
-      if (sharedUserIds.length > 0) {
-        const { error: shareError } = await supabase
-          .from('project_shares')
-          .insert(sharedUserIds.map((target_user_id: string) => ({ project_id: projectId, target_user_id })))
-        if (shareError) throw shareError
-      }
     }
 
     return new Response(JSON.stringify({ success: true }), {

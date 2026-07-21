@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
 
     const { data: problems, error: problemsError } = await supabase
       .from('problems')
-      .select('id, project_id, type, question, options, keywords, ref_course, ref_session, ref_location, share_scope, created_at')
+      .select('id, project_id, type, question, options, keywords, ref_course, ref_session, ref_kind, ref_detail, share_scope, created_at')
       .in('id', session.problem_ids)
     if (problemsError) throw problemsError
 

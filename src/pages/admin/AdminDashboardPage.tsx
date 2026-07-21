@@ -4,6 +4,7 @@ import { api, ApiError, type Cohort, type Student } from '../../lib/api'
 import { adminSession } from '../../lib/session'
 import { parseCsvLine, downloadCsv } from '../../lib/csv'
 import ProblemModerationPanel from '../../components/ProblemModerationPanel'
+import SubjectManagementPanel from '../../components/SubjectManagementPanel'
 
 const inputClass =
   'w-full rounded-lg border border-neutral-300 px-3 py-2 text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
@@ -502,6 +503,8 @@ function AdminDashboardPage() {
             </>
           )}
         </section>
+
+        <SubjectManagementPanel actor={{ adminToken: token }} />
 
         <ProblemModerationPanel actor={{ adminToken: token }} />
 

@@ -4,6 +4,7 @@ import { requireUser } from '../_shared/userAuth.ts'
 
 const VALID_TYPES = ['mcq', 'short', 'bible']
 const VALID_SHARE_SCOPES = ['inherit', 'private', 'all', 'selected']
+const VALID_REF_KINDS = ['강의요약본', '강의영상']
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -24,9 +25,9 @@ Deno.serve(async (req) => {
       options,
       answer,
       keywords,
-      refCourse,
       refSession,
-      refLocation,
+      refKind,
+      refDetail,
       shareScope,
       sharedUserIds,
     } = await req.json()
@@ -49,6 +50,12 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+    if (refKind && !VALID_REF_KINDS.includes(refKind)) {
+      return new Response(JSON.stringify({ error: 'invalid_ref_kind' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -57,16 +64,25 @@ Deno.serve(async (req) => {
 
     const { data: problem, error: fetchError } = await supabase
       .from('problems')
-      .select('id, project_id, projects!inner(owner_id)')
+      .select('id, author_id, project_id, projects!inner(session_count)')
       .eq('id', problemId)
       .maybeSingle()
     if (fetchError) throw fetchError
-    const owner = (problem as unknown as { projects: { owner_id: string } } | null)?.projects?.owner_id
-    if (!problem || owner !== userId) {
+    if (!problem || (problem as { author_id: string | null }).author_id !== userId) {
       return new Response(JSON.stringify({ error: 'not_found_or_forbidden' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
+    }
+    if (refSession !== undefined && refSession !== null && refSession !== '') {
+      const sessionCount = (problem as unknown as { projects: { session_count: number } }).projects.session_count
+      const sessionNumber = Number(refSession)
+      if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > sessionCount) {
+        return new Response(JSON.stringify({ error: 'invalid_ref_session' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
     }
 
     const updates: Record<string, unknown> = {}
@@ -75,9 +91,9 @@ Deno.serve(async (req) => {
     if (options !== undefined) updates.options = options
     if (answer !== undefined) updates.answer = answer
     if (keywords !== undefined) updates.keywords = keywords
-    if (refCourse !== undefined) updates.ref_course = refCourse
     if (refSession !== undefined) updates.ref_session = refSession
-    if (refLocation !== undefined) updates.ref_location = refLocation
+    if (refKind !== undefined) updates.ref_kind = refKind
+    if (refDetail !== undefined) updates.ref_detail = refDetail
     if (shareScope !== undefined) updates.share_scope = shareScope
 
     if (Object.keys(updates).length > 0) {

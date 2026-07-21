@@ -61,7 +61,8 @@ export interface ModeratedProblem {
   keywords: string | null
   refCourse: string | null
   refSession: string | null
-  refLocation: string | null
+  refKind: RefKind | null
+  refDetail: string | null
   shareScope: ProblemShareScope
   createdAt: string
 }
@@ -69,19 +70,19 @@ export interface ModeratedProblem {
 export type ShareScope = 'private' | 'all' | 'selected'
 export type ProblemShareScope = 'inherit' | ShareScope
 export type ProblemType = 'mcq' | 'short' | 'bible'
+export type RefKind = '강의요약본' | '강의영상'
 
 export interface Project {
   id: string
-  owner_id: string
   title: string
-  share_scope: ShareScope
+  session_count: number
   created_at: string
-  isOwner: boolean
 }
 
 export interface Problem {
   id: string
   project_id: string
+  author_id: string
   type: ProblemType
   question: string
   options: Record<string, string> | null
@@ -89,7 +90,8 @@ export interface Problem {
   keywords: string | null
   ref_course: string | null
   ref_session: string | null
-  ref_location: string | null
+  ref_kind: RefKind | null
+  ref_detail: string | null
   share_scope: ProblemShareScope
   created_at: string
 }
@@ -156,9 +158,9 @@ export const api = {
       options?: Record<string, string> | null
       answer?: string
       keywords?: string | null
-      refCourse?: string | null
       refSession?: string | null
-      refLocation?: string | null
+      refKind?: RefKind | null
+      refDetail?: string | null
     },
   ) => callFunction<{ success: true }>('admin-update-problem', { ...actor, body: payload }),
 
@@ -193,22 +195,22 @@ export const api = {
       { adminToken, method: 'GET' },
     ),
 
-  listProjects: (userToken: string) =>
-    callFunction<{ projects: Project[] }>('list-projects', { userToken, method: 'GET' }),
+  listProjects: (actor: { adminToken?: string; userToken?: string }) =>
+    callFunction<{ projects: Project[] }>('list-projects', { ...actor, method: 'GET' }),
 
-  createProject: (userToken: string, payload: { title: string; shareScope?: ShareScope }) =>
-    callFunction<{ success: true; project: Project }>('create-project', { userToken, body: payload }),
+  createProject: (actor: { adminToken?: string; userToken?: string }, payload: { title: string; sessionCount?: number }) =>
+    callFunction<{ success: true; project: Project }>('create-project', { ...actor, body: payload }),
 
   updateProject: (
-    userToken: string,
-    payload: { projectId: string; title?: string; shareScope?: ShareScope; sharedUserIds?: string[] },
-  ) => callFunction<{ success: true }>('update-project', { userToken, body: payload }),
+    actor: { adminToken?: string; userToken?: string },
+    payload: { projectId: string; title?: string; sessionCount?: number },
+  ) => callFunction<{ success: true }>('update-project', { ...actor, body: payload }),
 
-  deleteProject: (userToken: string, projectId: string) =>
-    callFunction<{ success: true }>('delete-project', { userToken, body: { projectId } }),
+  deleteProject: (actor: { adminToken?: string; userToken?: string }, projectId: string) =>
+    callFunction<{ success: true }>('delete-project', { ...actor, body: { projectId } }),
 
   listProblems: (userToken: string, projectId: string) =>
-    callFunction<{ problems: Problem[]; isOwner: boolean }>(`list-problems?projectId=${projectId}`, {
+    callFunction<{ problems: Problem[] }>(`list-problems?projectId=${projectId}`, {
       userToken,
       method: 'GET',
     }),
@@ -261,9 +263,9 @@ export const api = {
       options?: Record<string, string>
       answer: string
       keywords?: string
-      refCourse?: string
       refSession?: string
-      refLocation?: string
+      refKind?: RefKind
+      refDetail?: string
       shareScope?: ProblemShareScope
       sharedUserIds?: string[]
     },
@@ -284,9 +286,9 @@ export const api = {
       options?: Record<string, string>
       answer: string
       keywords?: string
-      refCourse?: string
       refSession?: string
-      refLocation?: string
+      refKind?: RefKind
+      refDetail?: string
     }>,
   ) => callFunction<{ success: true; created: number }>('bulk-create-problems', { userToken, body: { projectId, problems } }),
 
@@ -299,9 +301,9 @@ export const api = {
       options?: Record<string, string>
       answer?: string
       keywords?: string
-      refCourse?: string
       refSession?: string
-      refLocation?: string
+      refKind?: RefKind
+      refDetail?: string
       shareScope?: ProblemShareScope
       sharedUserIds?: string[]
     },

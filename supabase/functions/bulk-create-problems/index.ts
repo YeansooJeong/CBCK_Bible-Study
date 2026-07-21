@@ -3,7 +3,8 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { requireUser } from '../_shared/userAuth.ts'
 
 const VALID_TYPES = ['mcq', 'short', 'bible']
-const MAX_PROBLEMS_PER_PROJECT = 100
+const VALID_REF_KINDS = ['강의요약본', '강의영상']
+const MAX_PROBLEMS_PER_PROJECT = 2000
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -15,13 +16,33 @@ Deno.serve(async (req) => {
       return json({ error: 'invalid_payload' }, 400)
     }
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-    const { data: project } = await supabase.from('projects').select('owner_id').eq('id', projectId).maybeSingle()
-    if (!project || project.owner_id !== userId) return json({ error: 'not_found_or_forbidden' }, 404)
+    const { data: project } = await supabase.from('projects').select('id, title, session_count').eq('id', projectId).maybeSingle()
+    if (!project) return json({ error: 'not_found' }, 404)
     const { count } = await supabase.from('problems').select('id', { count: 'exact', head: true }).eq('project_id', projectId)
     if ((count ?? 0) + problems.length > MAX_PROBLEMS_PER_PROJECT) return json({ error: 'project_full' }, 400)
     const rows = problems.map((p: any) => {
       if (!VALID_TYPES.includes(p.type) || !p.question || !p.answer) throw new Error('invalid_problem')
-      return { project_id: projectId, type: p.type, question: p.question, options: p.options ?? null, answer: p.answer, keywords: p.keywords ?? null, ref_course: p.refCourse ?? null, ref_session: p.refSession ?? null, ref_location: p.refLocation ?? null, share_scope: 'inherit' }
+      if (p.refKind && !VALID_REF_KINDS.includes(p.refKind)) throw new Error('invalid_problem')
+      if (p.refSession) {
+        const sessionNumber = Number(p.refSession)
+        if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > project.session_count) {
+          throw new Error('invalid_problem')
+        }
+      }
+      return {
+        project_id: projectId,
+        author_id: userId,
+        type: p.type,
+        question: p.question,
+        options: p.options ?? null,
+        answer: p.answer,
+        keywords: p.keywords ?? null,
+        ref_course: project.title,
+        ref_session: p.refSession ?? null,
+        ref_kind: p.refKind ?? null,
+        ref_detail: p.refDetail ?? null,
+        share_scope: 'inherit',
+      }
     })
     const { error } = await supabase.from('problems').insert(rows)
     if (error) throw error

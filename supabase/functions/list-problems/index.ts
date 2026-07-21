@@ -2,6 +2,8 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { requireUser } from '../_shared/userAuth.ts'
 
+// 이 과목(프로젝트)에 내가 등록한 문제 목록(관리용). 실제 학습/풀이 시 노출되는
+// 전체 공유 문제 조회는 start-quiz-session이 _shared/visibleProblems.ts로 별도 처리한다.
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -30,7 +32,7 @@ Deno.serve(async (req) => {
 
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('owner_id, share_scope')
+      .select('id')
       .eq('id', projectId)
       .maybeSingle()
     if (projectError) throw projectError
@@ -41,46 +43,15 @@ Deno.serve(async (req) => {
       })
     }
 
-    const isOwner = project.owner_id === userId
-
-    if (isOwner) {
-      const { data: problems, error } = await supabase
-        .from('problems')
-        .select('*')
-        .eq('project_id', projectId)
-        .order('created_at', { ascending: false })
-      if (error) throw error
-      return new Response(JSON.stringify({ problems, isOwner: true }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const { data: projectShare } = await supabase
-      .from('project_shares')
-      .select('project_id')
+    const { data: problems, error } = await supabase
+      .from('problems')
+      .select('*')
       .eq('project_id', projectId)
-      .eq('target_user_id', userId)
-      .maybeSingle()
-    const projectVisible = project.share_scope === 'all' || (project.share_scope === 'selected' && !!projectShare)
-
-    const { data: problemShareRows } = await supabase
-      .from('problem_shares')
-      .select('problem_id')
-      .eq('target_user_id', userId)
-    const sharedProblemIds = (problemShareRows ?? []).map((r) => r.problem_id)
-
-    let query = supabase.from('problems').select('*').eq('project_id', projectId)
-    const orClauses = ['share_scope.eq.all']
-    if (projectVisible) orClauses.push('share_scope.eq.inherit')
-    if (sharedProblemIds.length > 0) {
-      orClauses.push(`and(share_scope.eq.selected,id.in.(${sharedProblemIds.join(',')}))`)
-    }
-    query = query.or(orClauses.join(','))
-
-    const { data: problems, error } = await query.order('created_at', { ascending: false })
+      .eq('author_id', userId)
+      .order('created_at', { ascending: false })
     if (error) throw error
 
-    return new Response(JSON.stringify({ problems, isOwner: false }), {
+    return new Response(JSON.stringify({ problems: problems ?? [] }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {

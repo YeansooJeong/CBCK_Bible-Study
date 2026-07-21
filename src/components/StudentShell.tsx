@@ -22,8 +22,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
   function logout() { studentSession.clear(); navigate('/login') }
 
   const isHome = location.pathname === '/home'
-  const isOwnedProjects = location.pathname === '/projects' && location.search !== '?scope=shared'
-  const isSharedProjects = location.pathname === '/projects' && location.search === '?scope=shared'
+  const isProjects = location.pathname === '/projects' || location.pathname.startsWith('/projects/')
   const isManage = location.pathname === '/manage'
 
   return <div className="student-app">
@@ -32,8 +31,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
       <nav aria-label="주 메뉴">
         <Link to="/home" className={isHome ? 'active' : ''}>홈</Link>
         <Link to="/home" state={{ openStudy: true }}>학습하기</Link>
-        <Link to="/projects" className={isOwnedProjects ? 'active' : ''}>내 문제함</Link>
-        <Link to="/projects?scope=shared" className={isSharedProjects ? 'active' : ''}>공유 문제</Link>
+        <Link to="/projects" className={isProjects ? 'active' : ''}>과목</Link>
         {user?.isAdmin && <Link to="/manage" className={isManage ? 'active' : ''}>관리</Link>}
       </nav>
       <div className="student-profile">

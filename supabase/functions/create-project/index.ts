@@ -1,28 +1,30 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-import { requireUser } from '../_shared/userAuth.ts'
+import { requireSuperOrGeneralAdmin } from '../_shared/adminAuth.ts'
 
+// 프로젝트 = 신학원 커리큘럼 과목. Super/일반 Admin만 생성 가능(학생은 생성 불가).
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const userId = await requireUser(req, Deno.env.get('SESSION_JWT_SECRET')!)
-    if (!userId) {
+    const actor = await requireSuperOrGeneralAdmin(req, Deno.env.get('SESSION_JWT_SECRET')!)
+    if (!actor) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const { title, shareScope } = await req.json()
+    const { title, sessionCount } = await req.json()
     if (!title) {
       return new Response(JSON.stringify({ error: 'missing_fields' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
-    if (shareScope && !['private', 'all', 'selected'].includes(shareScope)) {
-      return new Response(JSON.stringify({ error: 'invalid_share_scope' }), {
+    const count = sessionCount ? Number(sessionCount) : 32
+    if (!Number.isInteger(count) || count < 1) {
+      return new Response(JSON.stringify({ error: 'invalid_session_count' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -35,8 +37,8 @@ Deno.serve(async (req) => {
 
     const { data: project, error } = await supabase
       .from('projects')
-      .insert({ owner_id: userId, title, share_scope: shareScope ?? 'private' })
-      .select('id, title, share_scope, created_at')
+      .insert({ owner_id: null, title, session_count: count })
+      .select('id, title, session_count, created_at')
       .single()
     if (error) throw error
 

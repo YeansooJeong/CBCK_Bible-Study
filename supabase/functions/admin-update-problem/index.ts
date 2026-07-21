@@ -3,6 +3,7 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { requireSuperOrGeneralAdmin } from '../_shared/adminAuth.ts'
 
 const VALID_TYPES = ['mcq', 'short', 'bible']
+const VALID_REF_KINDS = ['강의요약본', '강의영상']
 
 // 슈퍼/일반 admin의 문제 모더레이션(소유권 무관하게 내용 수정).
 Deno.serve(async (req) => {
@@ -17,7 +18,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { problemId, type, question, options, answer, keywords, refCourse, refSession, refLocation } = await req.json()
+    const { problemId, type, question, options, answer, keywords, refSession, refKind, refDetail } = await req.json()
     if (!problemId) {
       return new Response(JSON.stringify({ error: 'missing_fields' }), {
         status: 400,
@@ -26,6 +27,12 @@ Deno.serve(async (req) => {
     }
     if (type && !VALID_TYPES.includes(type)) {
       return new Response(JSON.stringify({ error: 'invalid_type' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+    if (refKind && !VALID_REF_KINDS.includes(refKind)) {
+      return new Response(JSON.stringify({ error: 'invalid_ref_kind' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
@@ -42,9 +49,9 @@ Deno.serve(async (req) => {
     if (options !== undefined) updates.options = options
     if (answer !== undefined) updates.answer = answer
     if (keywords !== undefined) updates.keywords = keywords
-    if (refCourse !== undefined) updates.ref_course = refCourse
     if (refSession !== undefined) updates.ref_session = refSession
-    if (refLocation !== undefined) updates.ref_location = refLocation
+    if (refKind !== undefined) updates.ref_kind = refKind
+    if (refDetail !== undefined) updates.ref_detail = refDetail
 
     if (Object.keys(updates).length === 0) {
       return new Response(JSON.stringify({ error: 'no_updates' }), {

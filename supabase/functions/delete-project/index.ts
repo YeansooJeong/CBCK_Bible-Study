@@ -1,13 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
-import { requireUser } from '../_shared/userAuth.ts'
+import { requireSuperOrGeneralAdmin } from '../_shared/adminAuth.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const userId = await requireUser(req, Deno.env.get('SESSION_JWT_SECRET')!)
-    if (!userId) {
+    const actor = await requireSuperOrGeneralAdmin(req, Deno.env.get('SESSION_JWT_SECRET')!)
+    if (!actor) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -29,13 +29,25 @@ Deno.serve(async (req) => {
 
     const { data: project, error: fetchError } = await supabase
       .from('projects')
-      .select('owner_id')
+      .select('id')
       .eq('id', projectId)
       .maybeSingle()
     if (fetchError) throw fetchError
-    if (!project || project.owner_id !== userId) {
-      return new Response(JSON.stringify({ error: 'not_found_or_forbidden' }), {
+    if (!project) {
+      return new Response(JSON.stringify({ error: 'not_found' }), {
         status: 404,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
+
+    const { count, error: countError } = await supabase
+      .from('problems')
+      .select('id', { count: 'exact', head: true })
+      .eq('project_id', projectId)
+    if (countError) throw countError
+    if (count && count > 0) {
+      return new Response(JSON.stringify({ error: 'has_problems' }), {
+        status: 409,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }

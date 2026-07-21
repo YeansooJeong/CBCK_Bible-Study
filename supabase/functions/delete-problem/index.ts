@@ -29,12 +29,11 @@ Deno.serve(async (req) => {
 
     const { data: problem, error: fetchError } = await supabase
       .from('problems')
-      .select('id, projects!inner(owner_id)')
+      .select('id, author_id')
       .eq('id', problemId)
       .maybeSingle()
     if (fetchError) throw fetchError
-    const owner = (problem as unknown as { projects: { owner_id: string } } | null)?.projects?.owner_id
-    if (!problem || owner !== userId) {
+    if (!problem || problem.author_id !== userId) {
       return new Response(JSON.stringify({ error: 'not_found_or_forbidden' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

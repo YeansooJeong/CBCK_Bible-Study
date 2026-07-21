@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
       .select('id')
       .single()
     if (sessionError) throw sessionError
-    return json({ success: true, sessionId: session.id, problems: selected.map(({ projects: _projects, ...problem }: any) => problem) })
+    return json({ success: true, sessionId: session.id, problems: selected })
   } catch (error) { console.error(error); return json({ error: 'internal_error' }, 500) }
 })
 

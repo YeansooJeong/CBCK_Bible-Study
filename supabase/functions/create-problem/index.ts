@@ -2,9 +2,10 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { requireUser } from '../_shared/userAuth.ts'
 
-const MAX_PROBLEMS_PER_PROJECT = 100
+const MAX_PROBLEMS_PER_PROJECT = 2000
 const VALID_TYPES = ['mcq', 'short', 'bible']
 const VALID_SHARE_SCOPES = ['inherit', 'private', 'all', 'selected']
+const VALID_REF_KINDS = ['강의요약본', '강의영상']
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -18,7 +19,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { projectId, type, question, options, answer, keywords, refCourse, refSession, refLocation, shareScope, sharedUserIds } =
+    const { projectId, type, question, options, answer, keywords, refSession, refKind, refDetail, shareScope, sharedUserIds } =
       await req.json()
 
     if (!projectId || !type || !question || !answer) {
@@ -39,6 +40,12 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+    if (refKind && !VALID_REF_KINDS.includes(refKind)) {
+      return new Response(JSON.stringify({ error: 'invalid_ref_kind' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL')!,
@@ -47,15 +54,24 @@ Deno.serve(async (req) => {
 
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('owner_id')
+      .select('id, title, session_count')
       .eq('id', projectId)
       .maybeSingle()
     if (projectError) throw projectError
-    if (!project || project.owner_id !== userId) {
-      return new Response(JSON.stringify({ error: 'not_found_or_forbidden' }), {
+    if (!project) {
+      return new Response(JSON.stringify({ error: 'not_found' }), {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
+    }
+    if (refSession !== undefined && refSession !== null && refSession !== '') {
+      const sessionNumber = Number(refSession)
+      if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > project.session_count) {
+        return new Response(JSON.stringify({ error: 'invalid_ref_session' }), {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
     }
 
     const { count, error: countError } = await supabase
@@ -74,14 +90,16 @@ Deno.serve(async (req) => {
       .from('problems')
       .insert({
         project_id: projectId,
+        author_id: userId,
         type,
         question,
         options: options ?? null,
         answer,
         keywords: keywords ?? null,
-        ref_course: refCourse ?? null,
+        ref_course: project.title,
         ref_session: refSession ?? null,
-        ref_location: refLocation ?? null,
+        ref_kind: refKind ?? null,
+        ref_detail: refDetail ?? null,
         share_scope: shareScope ?? 'inherit',
       })
       .select('*')
