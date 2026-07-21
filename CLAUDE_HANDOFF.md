@@ -350,6 +350,84 @@ Edge Function이 `service_role`로 수행하면서 소유권·공유·권한 로
   - 신규 Edge Function 후보: `toggle-problem-bookmark`, `list-bookmarked-problems`,
     `list-my-answer-history` (모두 `x-user-token`).
 
+## 11. 최종 운영 상태 및 인수인계 (2026-07-21)
+
+### 실제 배포된 함수 목록
+
+문서 및 현재 배포 상태 기준으로 기존 함수들은 ACTIVE로 확인되었다. 최근 추가/변경 함수는 아래 목록을 배포 확인 대상으로 관리한다.
+
+- 댓글: `list-problem-comments`, `create-problem-comment`, `update-problem-comment`, `delete-problem-comment`
+- 북마크: `toggle-problem-bookmark`, `list-bookmarked-problems`
+- 퀴즈: `start-quiz-session` (북마크 전용 출제 변경 포함)
+- 기존 인증/관리자/프로젝트/문제/퀴즈 함수 전체
+
+주의: 최근 댓글·북마크 관련 함수는 로컬 코드 반영과 실제 Supabase 배포 여부를 Dashboard `Edge Functions`에서 최종 확인해야 한다.
+
+### 적용된 마이그레이션
+
+- `20260720000000_init_schema.sql`
+- `20260720010000_phone_crypto_functions.sql`
+- `20260721000000_quiz_session_status.sql`
+- `20260721010000_rate_limits.sql`
+- `20260721020000_admin_roles.sql`
+- `20260721030000_problem_comments.sql`
+- `20260721040000_problem_bookmarks.sql`
+
+`problem_comments`, `problem_bookmarks`는 Supabase SQL Editor에서 직접 실행하여 성공 확인했다. `db push`는 PostgreSQL 5432 연결 제한으로 실패할 수 있으므로, SQL Editor 적용 방식을 기준으로 기록한다.
+
+### 최종 커밋
+
+- HEAD/origin: `6952302 chore: finalize production readiness`
+- 주요 후속 커밋: `35d329a` 댓글 기능, `d142df3` 댓글 권한, `43e7999` 북마크 백엔드, `934b7f8` 북마크 복습, `04089de` 퀴즈 북마크 UI
+- 현재 `main`과 `origin/main`은 동기화 상태로 확인됨.
+
+### 테스트 완료 여부
+
+- `npm.cmd run build`: 성공
+- TypeScript/Vite 프로덕션 빌드: 성공
+- GitHub Pages 배포 구조 및 GitHub Actions 워크플로 확인
+- Supabase 마이그레이션 7개 적용 확인
+- Super Admin / 일반 Admin 권한 분리 확인
+- 모바일 Admin 학생 목록 레이아웃 수정 및 빌드 확인
+- 실제 운영 환경의 댓글·북마크 전체 흐름은 함수 재배포 후 최종 테스트 필요
+
+### 남은 알려진 이슈
+
+- 최근 댓글/북마크 Edge Function의 실제 ACTIVE 상태 최종 확인 필요
+- 문제별 댓글은 현재 작성자 본인 수정/삭제 중심이며, 관리자 댓글 관리 정책은 추가 검토 필요
+- 북마크 문제 복습은 연결되었으나, 북마크 해제 후 목록 갱신과 운영 환경 통합 테스트 필요
+- 미추적 `LOGIN_UX_Benchmark/` 폴더는 저장소 커밋 대상에서 제외
+- 운영 환경에서 실제 학생/관리자 계정으로 권한·모바일·댓글·북마크 E2E 테스트 필요
+
+### 관리자 운영 방법
+
+- Super Admin은 `/admin`에서 기수·학생·문제 관리와 일반 Admin 권한 관리를 수행한다.
+- 일반 Admin은 학생 및 허용된 문제 관리 기능을 사용한다.
+- 학생 일반 로그인은 `/login`을 사용하며, 일반 Admin 학생도 동일한 로그인 경로에서 권한이 활성화된다.
+- 전화번호 원문 조회는 감사 로그에 기록되므로 업무상 필요한 경우에만 실행한다.
+- 관리자 권한 변경 후 기존 세션에는 TTL이 남을 수 있으므로, 즉시 반영이 필요하면 재로그인한다.
+
+### 배포/복구 방법
+
+GitHub Pages:
+
+```powershell
+git push origin main
+```
+
+Supabase 함수:
+
+```powershell
+npx supabase functions deploy <function-name> --no-verify-jwt
+```
+
+DB 마이그레이션:
+
+- PostgreSQL 5432 연결이 가능하면 `npx supabase db push`
+- 연결이 차단되면 Supabase Dashboard → SQL Editor에서 마이그레이션 SQL을 순서대로 실행
+
+복구 시에는 먼저 GitHub의 이전 안정 커밋을 확인하고, DB는 이미 적용된 마이그레이션을 다시 실행하지 않는다. 함수 장애는 Dashboard Logs 확인 후 해당 함수만 재배포한다.
+
 ## 10. 변경 이력 (이 문서)
 
 | 날짜 | 내용 |
