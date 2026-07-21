@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import bcrypt from 'npm:bcryptjs@2'
 import { corsHeaders } from '../_shared/cors.ts'
+import { checkRateLimit, clientIp } from '../_shared/rateLimit.ts'
 
 // 이름/직함류: 앞뒤 공백·존칭이 붙어도 핵심 키워드가 서로 포함되면 일치로 간주
 function fuzzyTextMatch(input: string, stored: string): boolean {
@@ -40,6 +41,14 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
+
+    const allowed = await checkRateLimit(supabase, `activate-account:${clientIp(req)}`, 10, 600)
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: 'rate_limited' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const { data: phoneHash, error: hashError } = await supabase.rpc('hash_phone', {
       phone,

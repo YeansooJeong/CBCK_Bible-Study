@@ -28,6 +28,9 @@ function AdminDashboardPage() {
   const [editName, setEditName] = useState('')
   const [editCohortId, setEditCohortId] = useState('')
 
+  const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({})
+  const [auditLog, setAuditLog] = useState<Array<{ id: number; action: string; createdAt: string; actorName: string; targetName: string }>>([])
+
   useEffect(() => {
     const t = adminSession.get()
     if (!t) {
@@ -35,7 +38,19 @@ function AdminDashboardPage() {
       return
     }
     setToken(t)
+    api.adminListAuditLog(t).then(({ entries }) => setAuditLog(entries)).catch(() => setAuditLog([]))
   }, [navigate])
+
+  async function handleViewPhone(studentId: string) {
+    if (!token) return
+    try {
+      const { phone } = await api.adminViewStudentPhone(token, studentId)
+      setRevealedPhones((current) => ({ ...current, [studentId]: phone }))
+      api.adminListAuditLog(token).then(({ entries }) => setAuditLog(entries)).catch(() => undefined)
+    } catch {
+      setStudentError('전화번호 조회에 실패했습니다.')
+    }
+  }
 
   async function loadCohorts(adminToken: string) {
     const { cohorts } = await api.adminListCohorts(adminToken)
@@ -213,6 +228,7 @@ function AdminDashboardPage() {
                   <tr className="text-neutral-400">
                     <th className="pb-2">이름</th>
                     <th className="pb-2">기수</th>
+                    <th className="pb-2">전화번호</th>
                     <th className="pb-2">상태</th>
                     <th className="pb-2">등록일</th>
                     <th className="pb-2">관리</th>
@@ -242,7 +258,7 @@ function AdminDashboardPage() {
                             ))}
                           </select>
                         </td>
-                        <td className="py-2 text-neutral-400" colSpan={2}>
+                        <td className="py-2 text-neutral-400" colSpan={3}>
                           -
                         </td>
                         <td className="py-2">
@@ -261,6 +277,13 @@ function AdminDashboardPage() {
                         <td className="py-2 text-neutral-900 dark:text-neutral-50">{student.name}</td>
                         <td className="py-2 text-neutral-500">
                           {cohorts.find((c) => c.id === student.cohort_id)?.name ?? '-'}
+                        </td>
+                        <td className="py-2 text-neutral-500">
+                          {revealedPhones[student.id] ?? (
+                            <button type="button" onClick={() => handleViewPhone(student.id)} className="text-accent hover:underline">
+                              보기
+                            </button>
+                          )}
                         </td>
                         <td className="py-2">
                           <span
@@ -292,7 +315,7 @@ function AdminDashboardPage() {
                   )}
                   {students.length === 0 && (
                     <tr>
-                      <td colSpan={5} className="py-4 text-center text-neutral-400">
+                      <td colSpan={6} className="py-4 text-center text-neutral-400">
                         등록된 학생이 없습니다.
                       </td>
                     </tr>
@@ -301,6 +324,21 @@ function AdminDashboardPage() {
               </table>
             </>
           )}
+        </section>
+
+        <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+          <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">개인정보 접근 이력</h2>
+          <ul className="flex flex-col gap-2 text-sm">
+            {auditLog.map((entry) => (
+              <li key={entry.id} className="flex justify-between border-b border-neutral-100 pb-2 dark:border-neutral-900">
+                <span>
+                  <strong>{entry.actorName}</strong>이(가) <strong>{entry.targetName}</strong>의 전화번호를 조회함
+                </span>
+                <span className="text-neutral-400">{new Date(entry.createdAt).toLocaleString('ko-KR')}</span>
+              </li>
+            ))}
+            {auditLog.length === 0 && <p className="text-neutral-400">접근 이력이 없습니다.</p>}
+          </ul>
         </section>
       </div>
     </div>

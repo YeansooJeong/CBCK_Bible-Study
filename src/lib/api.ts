@@ -126,6 +126,15 @@ export const api = {
   adminDeleteStudent: (adminToken: string, studentId: string) =>
     callFunction<{ success: true }>('admin-delete-student', { adminToken, body: { studentId } }),
 
+  adminViewStudentPhone: (adminToken: string, studentId: string) =>
+    callFunction<{ success: true; phone: string }>('admin-view-student-phone', { adminToken, body: { studentId } }),
+
+  adminListAuditLog: (adminToken: string) =>
+    callFunction<{ entries: Array<{ id: number; action: string; createdAt: string; actorName: string; targetName: string }> }>(
+      'admin-list-audit-log',
+      { adminToken, method: 'GET' },
+    ),
+
   listProjects: (userToken: string) =>
     callFunction<{ projects: Project[] }>('list-projects', { userToken, method: 'GET' }),
 

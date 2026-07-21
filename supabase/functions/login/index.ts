@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2'
 import bcrypt from 'npm:bcryptjs@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { createSessionToken } from '../_shared/session.ts'
+import { checkRateLimit, clientIp } from '../_shared/rateLimit.ts'
 
 const MAX_FAILED_ATTEMPTS = 5
 const LOCK_DURATION_MS = 15 * 60 * 1000
@@ -22,6 +23,14 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
+
+    const allowed = await checkRateLimit(supabase, `login:${clientIp(req)}`, 30, 600)
+    if (!allowed) {
+      return new Response(JSON.stringify({ error: 'rate_limited' }), {
+        status: 429,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
 
     const { data: phoneHash, error: hashError } = await supabase.rpc('hash_phone', {
       phone,
