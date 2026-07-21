@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, type Problem, type ProblemShareScope, type ProblemType, type Project, type ShareScope } from '../lib/api'
 import { studentSession } from '../lib/session'
+import { parseCsvLine, downloadCsv } from '../lib/csv'
 import StudentShell, { Icon } from '../components/StudentShell'
 
 const inputClass = 'field'
@@ -132,37 +133,6 @@ function ProblemForm({ token, projectId, onCreated }: { token: string; projectId
   )
 }
 
-// CSV 표준 규칙대로 큰따옴표로 감싼 값 안의 쉼표/줄바꿈/이스케이프된 큰따옴표를 처리
-function parseCsvLine(line: string): string[] {
-  const cells: string[] = []
-  let current = ''
-  let inQuotes = false
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i]
-    if (inQuotes) {
-      if (ch === '"') {
-        if (line[i + 1] === '"') {
-          current += '"'
-          i++
-        } else {
-          inQuotes = false
-        }
-      } else {
-        current += ch
-      }
-    } else if (ch === '"') {
-      inQuotes = true
-    } else if (ch === ',') {
-      cells.push(current)
-      current = ''
-    } else {
-      current += ch
-    }
-  }
-  cells.push(current)
-  return cells.map((c) => c.trim())
-}
-
 // 1행: 헤더, 2~4행: 유형별(mcq/short/bible) 작성 예시, 5행부터 실제 문제 데이터
 const SAMPLE_CSV =
   'type,question,option1,option2,option3,option4,answer,keywords,ref_course,ref_session,ref_location\n' +
@@ -171,13 +141,7 @@ const SAMPLE_CSV =
   'bible,"믿음장으로 불리는 본문의 위치는?",,,,,"히브리서;11;1",,히브리서,3강,강의요약본 후반부\n'
 
 function downloadSampleCsv() {
-  const blob = new Blob(['﻿' + SAMPLE_CSV], { type: 'text/csv;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-  const a = document.createElement('a')
-  a.href = url
-  a.download = 'cbck_problem_sample.csv'
-  a.click()
-  URL.revokeObjectURL(url)
+  downloadCsv('cbck_problem_sample.csv', SAMPLE_CSV)
 }
 
 function parseCsv(text: string) {

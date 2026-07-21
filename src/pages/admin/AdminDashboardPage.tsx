@@ -2,9 +2,27 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, ApiError, type Cohort, type Student } from '../../lib/api'
 import { adminSession } from '../../lib/session'
+import { parseCsvLine, downloadCsv } from '../../lib/csv'
 
 const inputClass =
   'w-full rounded-lg border border-neutral-300 px-3 py-2 text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
+
+// 1행: 헤더(name,phone), 2행부터 실제 학생 데이터
+const STUDENT_SAMPLE_CSV = 'name,phone\n"홍길동","01012345678"\n"김철수","01098765432"\n'
+
+function parseStudentCsv(text: string) {
+  const rows = text.trim().split(/\r?\n/).map(parseCsvLine)
+  if (rows.length < 2) throw new Error('no_data')
+  const headers = rows[0]
+  const required = ['name', 'phone']
+  if (required.some((h) => !headers.includes(h))) throw new Error('header')
+  const dataRows = rows.slice(1).filter((r) => r.some(Boolean))
+  if (dataRows.length === 0) throw new Error('no_data')
+  return dataRows.map((r) => {
+    const value = (name: string) => r[headers.indexOf(name)] ?? ''
+    return { name: value('name'), phone: value('phone') }
+  })
+}
 
 function AdminDashboardPage() {
   const navigate = useNavigate()
@@ -20,9 +38,18 @@ function AdminDashboardPage() {
   const [kjvYear, setKjvYear] = useState('')
   const [cohortError, setCohortError] = useState<string | null>(null)
 
+  const [editingCohortId, setEditingCohortId] = useState<string | null>(null)
+  const [editCohortName, setEditCohortName] = useState('')
+  const [editCohortStaffName, setEditCohortStaffName] = useState('')
+  const [editCohortLeaderName, setEditCohortLeaderName] = useState('')
+  const [editCohortKjvYear, setEditCohortKjvYear] = useState('')
+
   const [studentName, setStudentName] = useState('')
   const [studentPhone, setStudentPhone] = useState('')
   const [studentError, setStudentError] = useState<string | null>(null)
+
+  const [bulkCsvFileName, setBulkCsvFileName] = useState<string | null>(null)
+  const [bulkCsvMessage, setBulkCsvMessage] = useState<string | null>(null)
 
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null)
   const [editName, setEditName] = useState('')
@@ -83,6 +110,74 @@ function AdminDashboardPage() {
     } catch (err) {
       console.error('adminCreateCohort failed', err)
       setCohortError('기수 생성에 실패했습니다.')
+    }
+  }
+
+  function startEditCohort(cohort: Cohort) {
+    setEditingCohortId(cohort.id)
+    setEditCohortName(cohort.name)
+    setEditCohortStaffName(cohort.staff_name)
+    setEditCohortLeaderName(cohort.leader_name)
+    setEditCohortKjvYear(cohort.kjv_year)
+    setCohortError(null)
+  }
+
+  async function handleSaveCohort(cohortId: string) {
+    if (!token) return
+    try {
+      await api.adminUpdateCohort(token, {
+        cohortId,
+        name: editCohortName,
+        staffName: editCohortStaffName,
+        leaderName: editCohortLeaderName,
+        kjvYear: editCohortKjvYear,
+      })
+      setEditingCohortId(null)
+      await loadCohorts(token)
+    } catch {
+      setCohortError('기수 정보 수정에 실패했습니다.')
+    }
+  }
+
+  async function handleDeleteCohort(cohortId: string) {
+    if (!token) return
+    if (!window.confirm('이 기수를 삭제할까요?')) return
+    try {
+      await api.adminDeleteCohort(token, cohortId)
+      if (selectedCohortId === cohortId) setSelectedCohortId('')
+      await loadCohorts(token)
+    } catch (err) {
+      setCohortError(
+        err instanceof ApiError && err.message === 'has_students'
+          ? '이 기수에 등록된 학생이 있어 삭제할 수 없습니다. 먼저 학생을 다른 기수로 옮기거나 삭제해주세요.'
+          : '기수 삭제에 실패했습니다.',
+      )
+    }
+  }
+
+  async function handleBulkUploadStudents(file: File) {
+    if (!token || !selectedCohortId) return
+    setStudentError(null)
+    setBulkCsvMessage(null)
+    setBulkCsvFileName(file.name)
+    try {
+      const students = parseStudentCsv(await file.text())
+      const { created, failed } = await api.bulkCreateStudents(token, { cohortId: selectedCohortId, students })
+      setBulkCsvMessage(
+        failed.length === 0
+          ? `${created}명이 등록되었습니다.`
+          : `${created}명 등록 완료, ${failed.length}명 실패 (행: ${failed.map((f) => f.row).join(', ')})`,
+      )
+      const { students: refreshed } = await api.adminListStudents(token, selectedCohortId)
+      setStudents(refreshed)
+    } catch (err) {
+      setBulkCsvMessage(
+        err instanceof Error && err.message === 'header'
+          ? '컬럼명(1행)이 올바르지 않습니다. 샘플 양식을 참고해주세요.'
+          : err instanceof Error && err.message === 'no_data'
+            ? '2행부터 학생 데이터를 입력해주세요.'
+            : '일괄 등록에 실패했습니다.',
+      )
     }
   }
 
@@ -186,21 +281,46 @@ function AdminDashboardPage() {
           </form>
 
           <ul className="flex flex-col gap-2">
-            {cohorts.map((cohort) => (
-              <li key={cohort.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCohortId(cohort.id)}
-                  className={`w-full rounded-lg border px-3 py-2 text-left text-sm transition ${
-                    selectedCohortId === cohort.id
-                      ? 'border-accent bg-accent/10 text-accent-dark'
-                      : 'border-neutral-200 dark:border-neutral-800'
-                  }`}
-                >
-                  {cohort.name} · 간사 {cohort.staff_name} · 반장 {cohort.leader_name} · {cohort.kjv_year}년판
-                </button>
-              </li>
-            ))}
+            {cohorts.map((cohort) =>
+              editingCohortId === cohort.id ? (
+                <li key={cohort.id} className="rounded-lg border border-accent p-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input className={inputClass} placeholder="기수명" value={editCohortName} onChange={(e) => setEditCohortName(e.target.value)} />
+                    <input className={inputClass} placeholder="간사 이름" value={editCohortStaffName} onChange={(e) => setEditCohortStaffName(e.target.value)} />
+                    <input className={inputClass} placeholder="반장 이름" value={editCohortLeaderName} onChange={(e) => setEditCohortLeaderName(e.target.value)} />
+                    <input className={inputClass} placeholder="출판연도" value={editCohortKjvYear} onChange={(e) => setEditCohortKjvYear(e.target.value)} />
+                  </div>
+                  <div className="mt-2 flex gap-3 text-sm">
+                    <button type="button" onClick={() => handleSaveCohort(cohort.id)} className="text-accent hover:underline">
+                      저장
+                    </button>
+                    <button type="button" onClick={() => setEditingCohortId(null)} className="text-neutral-400 hover:underline">
+                      취소
+                    </button>
+                  </div>
+                </li>
+              ) : (
+                <li key={cohort.id} className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCohortId(cohort.id)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                      selectedCohortId === cohort.id
+                        ? 'border-accent bg-accent/10 text-accent-dark'
+                        : 'border-neutral-200 dark:border-neutral-800'
+                    }`}
+                  >
+                    {cohort.name} · 간사 {cohort.staff_name} · 반장 {cohort.leader_name} · {cohort.kjv_year}년판
+                  </button>
+                  <button type="button" onClick={() => startEditCohort(cohort)} className="whitespace-nowrap text-sm text-accent hover:underline">
+                    수정
+                  </button>
+                  <button type="button" onClick={() => handleDeleteCohort(cohort.id)} className="whitespace-nowrap text-sm text-red-500 hover:underline">
+                    삭제
+                  </button>
+                </li>
+              ),
+            )}
             {cohorts.length === 0 && <p className="text-sm text-neutral-400">등록된 기수가 없습니다.</p>}
           </ul>
         </section>
@@ -222,6 +342,39 @@ function AdminDashboardPage() {
                   추가
                 </button>
               </form>
+
+              <div className="mb-6 rounded-lg border border-neutral-200 p-4 dark:border-neutral-800">
+                <h3 className="mb-2 text-sm font-medium text-neutral-900 dark:text-neutral-50">CSV로 한 번에 등록</h3>
+                <p className="mb-3 text-xs text-neutral-500">1행은 컬럼명(name, phone), 실제 학생은 2행부터 채워주세요.</p>
+                {bulkCsvMessage && <p className="mb-3 text-sm text-neutral-600 dark:text-neutral-300">{bulkCsvMessage}</p>}
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => downloadCsv('cbck_student_sample.csv', STUDENT_SAMPLE_CSV)}
+                    className="whitespace-nowrap rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
+                  >
+                    샘플 양식 다운로드
+                  </button>
+                  <label
+                    htmlFor="studentCsvFile"
+                    className="cursor-pointer whitespace-nowrap rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition hover:bg-accent-dark"
+                  >
+                    CSV 파일 선택
+                  </label>
+                  <span className="text-xs text-neutral-500">{bulkCsvFileName ?? '선택된 파일 없음'}</span>
+                  <input
+                    id="studentCsvFile"
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) handleBulkUploadStudents(file)
+                      e.target.value = ''
+                    }}
+                  />
+                </div>
+              </div>
 
               <table className="w-full text-left text-sm">
                 <thead>

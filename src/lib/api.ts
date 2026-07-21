@@ -107,6 +107,23 @@ export const api = {
     payload: { name: string; staffName: string; leaderName: string; kjvYear: string },
   ) => callFunction<{ success: true; cohort: { id: string; name: string } }>('admin-create-cohort', { adminToken, body: payload }),
 
+  adminUpdateCohort: (
+    adminToken: string,
+    payload: { cohortId: string; name?: string; staffName?: string; leaderName?: string; kjvYear?: string },
+  ) => callFunction<{ success: true; cohort: Cohort }>('admin-update-cohort', { adminToken, body: payload }),
+
+  adminDeleteCohort: (adminToken: string, cohortId: string) =>
+    callFunction<{ success: true }>('admin-delete-cohort', { adminToken, body: { cohortId } }),
+
+  bulkCreateStudents: (
+    adminToken: string,
+    payload: { cohortId: string; students: Array<{ name: string; phone: string }> },
+  ) =>
+    callFunction<{ success: true; created: number; failed: Array<{ row: number; name: string; phone: string; reason: string }> }>(
+      'bulk-create-students',
+      { adminToken, body: payload },
+    ),
+
   adminListStudents: (adminToken: string, cohortId?: string) =>
     callFunction<{ students: Student[] }>(
       `admin-list-students${cohortId ? `?cohortId=${cohortId}` : ''}`,
