@@ -185,8 +185,15 @@ export const api = {
       refSession?: string
       refLocation?: string
       shareScope?: ProblemShareScope
+      sharedUserIds?: string[]
     },
   ) => callFunction<{ success: true; problem: Problem }>('create-problem', { userToken, body: payload }),
+
+  listShareableUsers: (userToken: string, search?: string) =>
+    callFunction<{ users: Array<{ id: string; displayName: string }> }>(
+      `list-shareable-users${search ? `?q=${encodeURIComponent(search)}` : ''}`,
+      { userToken, method: 'GET' },
+    ),
 
   bulkCreateProblems: (
     userToken: string,

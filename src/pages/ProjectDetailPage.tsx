@@ -204,6 +204,11 @@ function ProjectDetailPage() {
   const [problems, setProblems] = useState<Problem[]>([])
   const [isOwner, setIsOwner] = useState(false)
   const [csvMessage, setCsvMessage] = useState<string | null>(null)
+  const [shareUsers, setShareUsers] = useState<Array<{ id: string; displayName: string }>>([])
+  const [projectSharePicker, setProjectSharePicker] = useState(false)
+  const [projectShareIds, setProjectShareIds] = useState<string[]>([])
+  const [problemSharePickerId, setProblemSharePickerId] = useState<string | null>(null)
+  const [problemShareIds, setProblemShareIds] = useState<string[]>([])
 
   async function reload(t: string, pid: string) {
     const [{ projects }, { problems, isOwner }] = await Promise.all([api.listProjects(t), api.listProblems(t, pid)])
@@ -220,18 +225,49 @@ function ProjectDetailPage() {
     // Initial server synchronization for the selected project.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     reload(token, projectId)
+    api.listShareableUsers(token).then(({ users }) => setShareUsers(users)).catch(() => setShareUsers([]))
   }, [projectId, navigate, token])
 
   async function handleShareScopeChange(scope: ShareScope) {
     if (!token || !projectId) return
+    if (scope === 'selected') {
+      setProjectShareIds([])
+      setProjectSharePicker(true)
+      return
+    }
+    setProjectSharePicker(false)
     await api.updateProject(token, { projectId, shareScope: scope })
+    reload(token, projectId)
+  }
+
+  async function applyProjectShare() {
+    if (!token || !projectId) return
+    await api.updateProject(token, { projectId, shareScope: 'selected', sharedUserIds: projectShareIds })
+    setProjectSharePicker(false)
     reload(token, projectId)
   }
 
   async function handleProblemShareScopeChange(problemId: string, scope: ProblemShareScope) {
     if (!token || !projectId) return
+    if (scope === 'selected') {
+      setProblemShareIds([])
+      setProblemSharePickerId(problemId)
+      return
+    }
+    if (problemSharePickerId === problemId) setProblemSharePickerId(null)
     await api.updateProblem(token, { problemId, shareScope: scope })
     reload(token, projectId)
+  }
+
+  async function applyProblemShare(problemId: string) {
+    if (!token || !projectId) return
+    await api.updateProblem(token, { problemId, shareScope: 'selected', sharedUserIds: problemShareIds })
+    setProblemSharePickerId(null)
+    reload(token, projectId)
+  }
+
+  function toggleShareId(ids: string[], setIds: (ids: string[]) => void, userId: string) {
+    setIds(ids.includes(userId) ? ids.filter((id) => id !== userId) : [...ids, userId])
   }
 
   async function handleDeleteProblem(problemId: string) {
@@ -273,6 +309,7 @@ function ProjectDetailPage() {
               >
                 <option value="private">비공개</option>
                 <option value="all">전체공개</option>
+                <option value="selected">선택한 학생</option>
               </select>
               <button
                 type="button"
@@ -284,6 +321,31 @@ function ProjectDetailPage() {
             </div>
           )}
         </div>
+
+        {isOwner && projectSharePicker && (
+          <section className="management-card">
+            <h2>프로젝트 공유 대상 선택</h2>
+            <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+              {shareUsers.map((u) => (
+                <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={projectShareIds.includes(u.id)}
+                    onChange={() => toggleShareId(projectShareIds, setProjectShareIds, u.id)}
+                  />
+                  {u.displayName}
+                </label>
+              ))}
+              {shareUsers.length === 0 && <small>공유 가능한 학생이 없습니다.</small>}
+            </div>
+            <div className="inline-actions" style={{ marginTop: 12 }}>
+              <button type="button" className="primary-button" onClick={applyProjectShare} disabled={projectShareIds.length === 0}>
+                {projectShareIds.length}명에게 공유 적용
+              </button>
+              <button type="button" onClick={() => setProjectSharePicker(false)}>취소</button>
+            </div>
+          </section>
+        )}
 
         <div className="problem-layout">
         {isOwner && (
@@ -347,6 +409,7 @@ function ProjectDetailPage() {
                       <option value="inherit">프로젝트 설정 따름</option>
                       <option value="private">비공개</option>
                       <option value="all">전체공개</option>
+                      <option value="selected">선택한 학생</option>
                     </select>
                     <button
                       type="button"
@@ -359,6 +422,29 @@ function ProjectDetailPage() {
               </div>
               <p>{problem.question}</p>
               {isOwner && <p className="problem-answer">정답: {problem.answer}</p>}
+              {isOwner && problemSharePickerId === problem.id && (
+                <div style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
+                  <div style={{ display: 'grid', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                    {shareUsers.map((u) => (
+                      <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <input
+                          type="checkbox"
+                          checked={problemShareIds.includes(u.id)}
+                          onChange={() => toggleShareId(problemShareIds, setProblemShareIds, u.id)}
+                        />
+                        {u.displayName}
+                      </label>
+                    ))}
+                    {shareUsers.length === 0 && <small>공유 가능한 학생이 없습니다.</small>}
+                  </div>
+                  <div className="inline-actions" style={{ marginTop: 10 }}>
+                    <button type="button" className="primary-button" onClick={() => applyProblemShare(problem.id)} disabled={problemShareIds.length === 0}>
+                      {problemShareIds.length}명에게 공유 적용
+                    </button>
+                    <button type="button" onClick={() => setProblemSharePickerId(null)}>취소</button>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
           {problems.length === 0 && <li className="empty-card">등록된 문제가 없습니다.</li>}

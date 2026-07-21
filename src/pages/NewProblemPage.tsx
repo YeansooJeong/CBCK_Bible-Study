@@ -14,10 +14,10 @@ const typeInfo = {
 type Draft = {
   type: ProblemType; question: string; options: string[]; correctIndex: number; shortAnswer: string; keywords: string
   book: string; chapter: string; verse: string; course: string; session: string; location: string
-  projectId: string; share: ProblemShareScope
+  projectId: string; share: ProblemShareScope; sharedUserIds: string[]
 }
 
-const emptyDraft: Draft = { type:'mcq', question:'', options:['','','',''], correctIndex:0, shortAnswer:'', keywords:'', book:'', chapter:'', verse:'', course:'', session:'', location:'', projectId:'', share:'private' }
+const emptyDraft: Draft = { type:'mcq', question:'', options:['','','',''], correctIndex:0, shortAnswer:'', keywords:'', book:'', chapter:'', verse:'', course:'', session:'', location:'', projectId:'', share:'private', sharedUserIds:[] }
 
 function readDraft(): Draft {
   try { return { ...emptyDraft, ...JSON.parse(localStorage.getItem(DRAFT_KEY) || '{}') } as Draft }
@@ -33,6 +33,8 @@ export default function NewProblemPage() {
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [savedProjectId, setSavedProjectId] = useState('')
+  const [shareUsers, setShareUsers] = useState<Array<{ id: string; displayName: string }>>([])
+  const [shareSearch, setShareSearch] = useState('')
 
   useEffect(() => {
     const token = studentSession.get()
@@ -42,7 +44,17 @@ export default function NewProblemPage() {
       setProjects(owned)
       setDraft((current) => ({ ...current, projectId: owned.some((item) => item.id === current.projectId) ? current.projectId : (owned[0]?.id || '') }))
     }).catch(() => setError('프로젝트를 불러오지 못했습니다.')).finally(() => setLoading(false))
+    api.listShareableUsers(token).then(({ users }) => setShareUsers(users)).catch(() => setShareUsers([]))
   }, [navigate])
+
+  function toggleSharedUser(userId: string) {
+    setDraft((current) => ({
+      ...current,
+      sharedUserIds: current.sharedUserIds.includes(userId)
+        ? current.sharedUserIds.filter((id) => id !== userId)
+        : [...current.sharedUserIds, userId],
+    }))
+  }
 
   const answerLabel = useMemo(() => {
     if (draft.type === 'mcq') return draft.options[draft.correctIndex] || `${draft.correctIndex + 1}번 보기가 정답으로 지정됨`
@@ -59,6 +71,7 @@ export default function NewProblemPage() {
     if (draft.type === 'bible' && (!draft.book.trim() || !draft.chapter || !draft.verse)) return '정답 성경책·장·절을 모두 입력해 주세요.'
     if (!draft.course.trim() || !draft.session.trim() || !draft.location.trim()) return '학습 레퍼런스 3개 항목을 모두 입력해 주세요.'
     if (!draft.projectId) return '문제를 저장할 프로젝트를 선택해 주세요.'
+    if (draft.share === 'selected' && draft.sharedUserIds.length === 0) return '공유할 학생을 한 명 이상 선택해 주세요.'
     return ''
   }
 
@@ -78,6 +91,7 @@ export default function NewProblemPage() {
         answer: draft.type === 'mcq' ? String(draft.correctIndex + 1) : draft.type === 'short' ? draft.shortAnswer.trim() : `${draft.book.trim()};${draft.chapter};${draft.verse}`,
         keywords: draft.type === 'short' ? draft.keywords.trim() || undefined : undefined,
         refCourse: draft.course.trim(), refSession: draft.session.trim(), refLocation: draft.location.trim(), shareScope: draft.share,
+        sharedUserIds: draft.share === 'selected' ? draft.sharedUserIds : undefined,
       })
       localStorage.removeItem(DRAFT_KEY); setSavedProjectId(draft.projectId); setNotice('문제가 프로젝트에 저장되었습니다.')
     } catch { setError('문제 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.') }
@@ -101,14 +115,28 @@ export default function NewProblemPage() {
 
         <section className="creator-section reference-section"><div className="creator-title"><span>03</span><div><h2>학습 레퍼런스</h2><p>오답을 다시 공부할 수 있도록 출처를 남겨주세요.</p></div><mark>필수</mark></div><div className="creator-reference-grid"><label className="creator-field">강의명 <b>필수</b><input value={draft.course} onChange={(e) => update('course', e.target.value)} placeholder="예: 창세기"/></label><label className="creator-field">회차 <b>필수</b><input value={draft.session} onChange={(e) => update('session', e.target.value)} placeholder="예: 1강"/></label><label className="creator-field full">세부 위치 <b>필수</b><input value={draft.location} onChange={(e) => update('location', e.target.value)} placeholder="예: 강의요약본 초반부, 강의 영상 12분경"/></label></div></section>
 
-        <section className="creator-section"><div className="creator-title"><span>04</span><div><h2>저장과 공유</h2><p>문제를 담을 프로젝트와 공개 범위를 정하세요.</p></div></div><label className="creator-field">저장할 프로젝트 <b>필수</b><select value={draft.projectId} onChange={(e) => update('projectId', e.target.value)}><option value="">프로젝트 선택</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.title}</option>)}</select></label><div className="share-options">{([{key:'private',title:'나만 보기',desc:'작성자만 조회·수정할 수 있어요.'},{key:'all',title:'전체 학생',desc:'등록된 모든 학생이 풀 수 있어요.'}] as const).map((item) => <button type="button" key={item.key} className={draft.share === item.key ? 'selected' : ''} onClick={() => update('share', item.key)}><span>{draft.share === item.key ? '●' : '○'}</span><div><strong>{item.title}</strong><small>{item.desc}</small></div></button>)}<button type="button" disabled title="학생 선택 기능은 다음 백엔드 단계에서 제공됩니다."><span>○</span><div><strong>선택한 학생</strong><small>사용자 선택 기능 준비 중</small></div></button></div></section>
+        <section className="creator-section"><div className="creator-title"><span>04</span><div><h2>저장과 공유</h2><p>문제를 담을 프로젝트와 공개 범위를 정하세요.</p></div></div><label className="creator-field">저장할 프로젝트 <b>필수</b><select value={draft.projectId} onChange={(e) => update('projectId', e.target.value)}><option value="">프로젝트 선택</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.title}</option>)}</select></label><div className="share-options">{([{key:'private',title:'나만 보기',desc:'작성자만 조회·수정할 수 있어요.'},{key:'all',title:'전체 학생',desc:'등록된 모든 학생이 풀 수 있어요.'},{key:'selected',title:'선택한 학생',desc:'고른 학생만 조회·풀이할 수 있어요.'}] as const).map((item) => <button type="button" key={item.key} className={draft.share === item.key ? 'selected' : ''} onClick={() => update('share', item.key)}><span>{draft.share === item.key ? '●' : '○'}</span><div><strong>{item.title}</strong><small>{item.desc}</small></div></button>)}</div>
+          {draft.share === 'selected' && <div className="creator-field plain">
+            공유할 학생 <b>필수</b>
+            <input value={shareSearch} onChange={(e) => setShareSearch(e.target.value)} placeholder="이름으로 검색" style={{ marginTop: 8, marginBottom: 8 }} />
+            <div style={{ display: 'grid', gap: 6, maxHeight: 220, overflowY: 'auto' }}>
+              {shareUsers.filter((u) => u.displayName.toLowerCase().includes(shareSearch.toLowerCase())).map((u) => (
+                <label key={u.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 400 }}>
+                  <input type="checkbox" checked={draft.sharedUserIds.includes(u.id)} onChange={() => toggleSharedUser(u.id)} />
+                  {u.displayName}
+                </label>
+              ))}
+              {shareUsers.length === 0 && <small>공유 가능한 학생이 없습니다.</small>}
+            </div>
+          </div>}
+        </section>
 
         {error && <div className="creator-error" role="alert">! {error}</div>}
         {savedProjectId && <div className="creator-success"><strong>문제가 저장되었습니다.</strong><div><button type="button" onClick={resetForNext}>계속 등록</button><Link to={`/projects/${savedProjectId}`}>프로젝트에서 확인 →</Link></div></div>}
         <div className="creator-actions"><button type="button" className="draft-button" onClick={saveDraft}>임시저장</button><button type="submit" className="primary-button" disabled={saving || loading}>{saving ? '저장 중…' : '문제 저장'} {!saving && <Icon name="arrow"/>}</button></div>
       </form>
 
-      <aside className="preview-column"><div className="preview-label"><span>실시간 미리보기</span><small>학습자에게 보이는 화면</small></div><article className="problem-preview"><span className="preview-bookmark"/><div className="preview-meta"><span>{typeInfo[draft.type].badge}</span><span>{draft.course || '강의명'} · {draft.session || '회차'}</span></div><h2>{draft.question || '입력한 문제가 이곳에 표시됩니다.'}</h2>{draft.type === 'mcq' ? <div className="preview-options">{draft.options.map((item,index) => <div key={index} className={draft.correctIndex === index && item ? 'answer' : ''}><span>{index+1}</span>{item || `${index+1}번 보기`}</div>)}</div> : <div className="preview-answer"><small>정답</small><strong>{answerLabel}</strong>{draft.type === 'short' && draft.keywords && <p>인정 키워드 · {draft.keywords}</p>}</div>}<div className="preview-reference"><small>학습 레퍼런스</small><strong>{draft.course || '강의명'} · {draft.session || '회차'}</strong><p>{draft.location || '정답을 다시 확인할 세부 위치'}</p></div></article><div className="policy-note"><strong>공유 설정 안내</strong><p>{draft.share === 'private' ? '저장 후에도 이 문제는 나만 볼 수 있습니다.' : '저장하면 전체 학생에게 공유됩니다.'}</p><span>문제 단위 설정이 프로젝트 설정보다 우선합니다.</span></div></aside>
+      <aside className="preview-column"><div className="preview-label"><span>실시간 미리보기</span><small>학습자에게 보이는 화면</small></div><article className="problem-preview"><span className="preview-bookmark"/><div className="preview-meta"><span>{typeInfo[draft.type].badge}</span><span>{draft.course || '강의명'} · {draft.session || '회차'}</span></div><h2>{draft.question || '입력한 문제가 이곳에 표시됩니다.'}</h2>{draft.type === 'mcq' ? <div className="preview-options">{draft.options.map((item,index) => <div key={index} className={draft.correctIndex === index && item ? 'answer' : ''}><span>{index+1}</span>{item || `${index+1}번 보기`}</div>)}</div> : <div className="preview-answer"><small>정답</small><strong>{answerLabel}</strong>{draft.type === 'short' && draft.keywords && <p>인정 키워드 · {draft.keywords}</p>}</div>}<div className="preview-reference"><small>학습 레퍼런스</small><strong>{draft.course || '강의명'} · {draft.session || '회차'}</strong><p>{draft.location || '정답을 다시 확인할 세부 위치'}</p></div></article><div className="policy-note"><strong>공유 설정 안내</strong><p>{draft.share === 'private' ? '저장 후에도 이 문제는 나만 볼 수 있습니다.' : draft.share === 'all' ? '저장하면 전체 학생에게 공유됩니다.' : `저장하면 선택한 ${draft.sharedUserIds.length}명에게만 공유됩니다.`}</p><span>문제 단위 설정이 프로젝트 설정보다 우선합니다.</span></div></aside>
     </div>}
     {notice && <div className="toast" role="status">{notice}</div>}
   </main></StudentShell>

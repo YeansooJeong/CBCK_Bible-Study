@@ -18,7 +18,7 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { projectId, type, question, options, answer, keywords, refCourse, refSession, refLocation, shareScope } =
+    const { projectId, type, question, options, answer, keywords, refCourse, refSession, refLocation, shareScope, sharedUserIds } =
       await req.json()
 
     if (!projectId || !type || !question || !answer) {
@@ -87,6 +87,13 @@ Deno.serve(async (req) => {
       .select('*')
       .single()
     if (error) throw error
+
+    if (Array.isArray(sharedUserIds) && sharedUserIds.length > 0) {
+      const { error: shareError } = await supabase
+        .from('problem_shares')
+        .insert(sharedUserIds.map((target_user_id: string) => ({ problem_id: problem.id, target_user_id })))
+      if (shareError) throw shareError
+    }
 
     return new Response(JSON.stringify({ success: true, problem }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
