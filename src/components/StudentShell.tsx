@@ -1,5 +1,5 @@
-import type { ReactNode } from 'react'
-import { NavLink, useNavigate } from 'react-router-dom'
+import { useState, type ReactNode } from 'react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { studentSession } from '../lib/session'
 
 export function Icon({ name, size = 22 }: { name: 'book' | 'file' | 'users' | 'plus' | 'arrow' | 'upload'; size?: number }) {
@@ -16,22 +16,36 @@ export function Icon({ name, size = 22 }: { name: 'book' | 'file' | 'users' | 'p
 
 export default function StudentShell({ children }: { children: ReactNode }) {
   const navigate = useNavigate()
+  const location = useLocation()
   const user = studentSession.getUser()
+  const [profileOpen, setProfileOpen] = useState(false)
   function logout() { studentSession.clear(); navigate('/login') }
+
+  const isHome = location.pathname === '/home'
+  const isOwnedProjects = location.pathname === '/projects' && location.search !== '?scope=shared'
+  const isSharedProjects = location.pathname === '/projects' && location.search === '?scope=shared'
 
   return <div className="student-app">
     <header className="student-topbar">
-      <NavLink className="student-brand" to="/home"><span className="brandmark"><span>▯</span></span><strong>신학원 문제은행</strong></NavLink>
+      <Link className="student-brand" to="/home"><span className="brandmark"><span>▯</span></span><strong>신학원 문제은행</strong></Link>
       <nav aria-label="주 메뉴">
-        <NavLink to="/home">홈</NavLink>
-        <NavLink to="/home" state={{ openStudy: true }}>학습하기</NavLink>
-        <NavLink to="/projects">내 문제함</NavLink>
-        <NavLink to="/projects?scope=shared">공유 문제</NavLink>
+        <Link to="/home" className={isHome ? 'active' : ''}>홈</Link>
+        <Link to="/home" state={{ openStudy: true }}>학습하기</Link>
+        <Link to="/projects" className={isOwnedProjects ? 'active' : ''}>내 문제함</Link>
+        <Link to="/projects?scope=shared" className={isSharedProjects ? 'active' : ''}>공유 문제</Link>
       </nav>
       <div className="student-profile">
-        <span className="avatar">{user?.displayName?.slice(0, 1) || '학'}</span>
+        <button type="button" className="avatar" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-haspopup="true">
+          {user?.displayName?.slice(0, 1) || '학'}
+        </button>
         <span className="profile-name">{user?.displayName || '학습자'}</span>
-        <button type="button" onClick={logout}>로그아웃</button>
+        <button type="button" className="logout-desktop" onClick={logout}>로그아웃</button>
+        {profileOpen && (
+          <div className="profile-menu">
+            <span>{user?.displayName || '학습자'}님</span>
+            <button type="button" onClick={logout}>로그아웃</button>
+          </div>
+        )}
       </div>
     </header>
     {children}

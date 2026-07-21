@@ -230,7 +230,7 @@ function StudentAuthPage() {
                   id="kjv"
                   className="field"
                   inputMode="numeric"
-                  placeholder="예: 1611"
+                  placeholder="해당 연도 숫자만 입력"
                   value={kjvYear}
                   onChange={(e) => setKjvYear(e.target.value)}
                   required
@@ -258,10 +258,9 @@ function StudentAuthPage() {
             </form>
           )}
 
-          <div className="auth-meta">
-            <span>처음 방문하셨나요?</span>
+          <div className="auth-meta" style={{ justifyContent: 'flex-end' }}>
             <Link className="admin-link" to="/admin/login">
-              관리자 로그인 →
+              관리자이신가요? 관리자 로그인 →
             </Link>
           </div>
         </section>

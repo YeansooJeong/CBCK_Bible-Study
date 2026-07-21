@@ -204,6 +204,7 @@ function ProjectDetailPage() {
   const [problems, setProblems] = useState<Problem[]>([])
   const [isOwner, setIsOwner] = useState(false)
   const [csvMessage, setCsvMessage] = useState<string | null>(null)
+  const [csvFileName, setCsvFileName] = useState<string | null>(null)
   const [shareUsers, setShareUsers] = useState<Array<{ id: string; displayName: string }>>([])
   const [projectSharePicker, setProjectSharePicker] = useState(false)
   const [projectShareIds, setProjectShareIds] = useState<string[]>([])
@@ -357,18 +358,26 @@ function ProjectDetailPage() {
               <p>
                 1행은 컬럼명, 2~4행은 유형별(4지선다/단답형/성경문제) 작성 예시입니다. <strong>실제 문제는 5행부터</strong> 채워주세요.
               </p>
-              <p>컬럼: type, question, option1~4(4지선다만), answer, keywords(단답형 선택), ref_course, ref_session, ref_location</p>
               <button type="button" onClick={downloadSampleCsv} className="secondary-button">
                 샘플 양식 다운로드
               </button>
               {csvMessage && <div className="notice">{csvMessage}</div>}
+              <div className="file-picker">
+                <label htmlFor="csvFile" className="primary-button">
+                  <Icon name="upload" size={16} /> CSV 파일 선택
+                </label>
+                <span>{csvFileName ?? '선택된 파일 없음'}</span>
+              </div>
               <input
+                id="csvFile"
                 type="file"
                 accept=".csv,text/csv"
+                className="visually-hidden"
                 onChange={async (e) => {
                   const file = e.target.files?.[0]
                   if (!file) return
                   setCsvMessage(null)
+                  setCsvFileName(file.name)
                   try {
                     const imported = parseCsv(await file.text())
                     await api.bulkCreateProblems(token, projectId!, imported)
