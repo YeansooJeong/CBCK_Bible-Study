@@ -13,6 +13,7 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
   const [editQuestion, setEditQuestion] = useState('')
   const [editAnswer, setEditAnswer] = useState('')
   const [editOptions, setEditOptions] = useState(['', '', '', ''])
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
 
   async function load() {
     try {
@@ -60,10 +61,28 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
     }
   }
 
+  function toggleExpanded(problemId: string) {
+    setExpandedIds((current) => {
+      const next = new Set(current)
+      if (next.has(problemId)) next.delete(problemId)
+      else next.add(problemId)
+      return next
+    })
+  }
+
+  function toggleAll() {
+    setExpandedIds((current) => current.size === problems.length ? new Set() : new Set(problems.map((p) => p.id)))
+  }
+
   return (
     <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
       <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">문제 관리</h2>
-      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        {error ? <p className="text-sm text-red-500">{error}</p> : <span className="text-xs text-neutral-500">총 {problems.length}문제</span>}
+        {problems.length > 0 && <button type="button" onClick={toggleAll} className="text-xs text-accent hover:underline">
+          {expandedIds.size === problems.length ? '전체 접기' : '전체 펼치기'}
+        </button>}
+      </div>
       <ul className="flex flex-col gap-3 text-sm">
         {problems.map((p) =>
           editingId === p.id ? (
@@ -96,15 +115,18 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
               </div>
             </li>
           ) : (
-            <li key={p.id} className="flex items-start justify-between gap-3 border-b border-neutral-100 pb-3 dark:border-neutral-900">
+            <li key={p.id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
               <div>
                 <p className="text-xs text-neutral-400">
                   {p.projectTitle} · {p.ownerName} · {typeLabel[p.type]}
                 </p>
-                <p className="text-neutral-900 dark:text-neutral-50">{p.question}</p>
+                <p className={`text-neutral-900 dark:text-neutral-50 ${expandedIds.has(p.id) ? '' : 'line-clamp-2'}`}>{p.question}</p>
                 <p className="text-xs text-neutral-500">정답: {p.answer}</p>
               </div>
-              <div className="flex shrink-0 gap-2 whitespace-nowrap">
+              <div className="flex shrink-0 flex-wrap justify-end gap-2 text-xs sm:text-sm">
+                <button type="button" onClick={() => toggleExpanded(p.id)} className="text-neutral-500 hover:underline">
+                  {expandedIds.has(p.id) ? '접기' : '펼치기'}
+                </button>
                 <button type="button" onClick={() => startEdit(p)} className="text-accent hover:underline">
                   수정
                 </button>
