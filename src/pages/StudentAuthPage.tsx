@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Icon } from '../components/StudentShell'
 import { api, ApiError } from '../lib/api'
 import { studentSession } from '../lib/session'
+import churchLogo from '../assets/church-logo.png'
 
 type Step = 'phone' | 'login' | 'activate' | 'not-registered'
 
@@ -115,8 +116,8 @@ function StudentAuthPage() {
       <div className="auth-frame">
         <section className="auth-intro">
           <div className="brand">
-            <span className="brandmark"><span>▯</span></span>
-            <strong>CBCK 문제은행</strong>
+            <img className="brand-logo" src={churchLogo} alt="사랑침례교회" />
+            <strong>신학원 스터디 카페</strong>
           </div>
           <div className="auth-intro-copy">
             <p className="eyebrow">BIBLE STUDY · QUIZ BANK</p>

@@ -18,6 +18,32 @@ function downloadSampleCsv() {
   downloadCsv('cbck_problem_sample.csv', SAMPLE_CSV)
 }
 
+// ChatGPT/Claude/NotebookLM 등 어떤 생성형 AI에도 붙여넣어 쓸 수 있도록 범용으로 작성.
+// 표는 확인용, 그 아래 헤더 없는 CSV 블록만 복사해 샘플 양식 5행부터 붙여넣으면 됨.
+function buildAiPrompt(projectTitle: string) {
+  return `아래 소스 자료를 바탕으로 문제 [문제 개수]개를 만들어줘. 대부분 4지선다(mcq)로 내고, 필요하면 단답형(short)이나 성경문제(bible)를 섞어줘. 이 문제들은 "${projectTitle}" 과목의 [회차]강 내용이야.
+
+먼저 아래 열로 구성된 표를 만들어서 보여줘(내용 확인용):
+type | question | option1 | option2 | option3 | option4 | answer | keywords | ref_session | ref_kind | ref_detail
+
+각 열 작성 규칙:
+- type: mcq(객관식) / short(단답형) / bible(성경문제) 중 하나
+- question: 문제 본문
+- option1~4: mcq일 때만 4개 보기를 채우고, 그 외 유형은 비워둬
+- answer: mcq는 정답 보기의 번호(1~4 중 하나), short는 정답 문장, bible은 "책;장;절" 형식(예: 히브리서;11;1)
+- keywords: short 유형일 때만 정답으로 인정할 핵심 단어를 세미콜론(;)으로 구분해서 적고, 그 외 유형은 비워둬
+- ref_session: [회차] 값을 숫자만 그대로 적어줘(예: 3)
+- ref_kind: 정답의 출처가 "강의요약본"인지 "강의영상"인지 둘 중 하나
+- ref_detail: 정답을 다시 찾을 수 있는 대략적 위치(예: "초반부", "유튜브 강의 1분 50초경", "PDF 중반부") — 알 수 있으면 적어줘
+
+표를 보여준 다음, 같은 내용을 아래 형식으로 한 번 더 출력해줘. 이번엔 헤더 없이 각 문제를 한 줄씩, 쉼표(,)로 구분한 CSV 형식으로만 출력하고(다른 설명 문구 없이), 값 안에 쉼표나 큰따옴표가 들어가면 큰따옴표로 감싸줘. 예시:
+"mcq","천지창조는 며칠 동안 이루어졌는가?","3일","6일","7일","40일","2","","3","강의요약본","초반부"
+
+이 두 번째 CSV 블록만 복사해서, CBCK 문제은행 사이트에서 다운로드한 샘플 양식 파일의 5행부터 그대로 붙여넣어 사용할 거야. 정답은 반드시 아래 소스 자료 안에서 실제로 확인 가능한 내용으로만 출제해줘.
+
+[여기에 소스 자료(강의 스크립트, PDF 텍스트 등)를 붙여넣으세요]`
+}
+
 function parseCsv(text: string) {
   const rows = text.trim().split(/\r?\n/).map(parseCsvLine)
   if (rows.length < 5) throw new Error('no_data')
@@ -52,6 +78,7 @@ function ProjectDetailPage() {
   const [problems, setProblems] = useState<Problem[]>([])
   const [csvMessage, setCsvMessage] = useState<string | null>(null)
   const [csvFileName, setCsvFileName] = useState<string | null>(null)
+  const [promptCopied, setPromptCopied] = useState(false)
   const [shareUsers, setShareUsers] = useState<Array<{ id: string; displayName: string }>>([])
   const [problemSharePickerId, setProblemSharePickerId] = useState<string | null>(null)
   const [problemShareIds, setProblemShareIds] = useState<string[]>([])
@@ -72,6 +99,13 @@ function ProjectDetailPage() {
     reload(token, projectId)
     api.listShareableUsers(token).then(({ users }) => setShareUsers(users)).catch(() => setShareUsers([]))
   }, [projectId, navigate, token])
+
+  async function copyAiPrompt() {
+    if (!project) return
+    await navigator.clipboard.writeText(buildAiPrompt(project.title))
+    setPromptCopied(true)
+    window.setTimeout(() => setPromptCopied(false), 2400)
+  }
 
   async function handleProblemShareScopeChange(problemId: string, scope: ProblemShareScope) {
     if (!token || !projectId) return
@@ -130,9 +164,15 @@ function ProjectDetailPage() {
             <p>
               1행은 컬럼명, 2~4행은 유형별(4지선다/단답형/성경문제) 작성 예시입니다. <strong>실제 문제는 5행부터</strong> 채워주세요.
             </p>
-            <button type="button" onClick={downloadSampleCsv} className="secondary-button">
-              샘플 양식 다운로드
-            </button>
+            <div className="csv-actions">
+              <button type="button" onClick={downloadSampleCsv} className="secondary-button">
+                샘플 양식 다운로드
+              </button>
+              <button type="button" onClick={copyAiPrompt} className="secondary-button">
+                {promptCopied ? '복사됨 ✓' : '생성형AI용 프롬프트 복사'}
+              </button>
+            </div>
+            <p className="csv-ai-hint">복사한 프롬프트를 ChatGPT·Claude·NotebookLM 등에 붙여넣고 대괄호([ ]) 부분을 채운 뒤, 결과로 나온 CSV 블록을 샘플 양식 5행부터 붙여넣으세요.</p>
             {csvMessage && <div className="notice">{csvMessage}</div>}
             <div className="file-picker">
               <label htmlFor="csvFile" className="primary-button">

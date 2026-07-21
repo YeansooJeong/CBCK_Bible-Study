@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { adminSession } from '../../lib/session'
+import churchLogo from '../../assets/church-logo.png'
 
 function AdminLoginPage() {
   const navigate = useNavigate()
@@ -29,10 +30,8 @@ function AdminLoginPage() {
     <div className="auth-shell">
       <div className="auth-frame-solo">
         <div className="brand" style={{ marginBottom: 24, justifyContent: 'center' }}>
-          <span className="brandmark">
-            <span>▯</span>
-          </span>
-          <strong>CBCK 문제은행</strong>
+          <img className="brand-logo" src={churchLogo} alt="사랑침례교회" />
+          <strong>신학원 스터디 카페</strong>
         </div>
         <section className="auth-card">
           <h2>관리자 로그인</h2>

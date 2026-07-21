@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { studentSession } from '../lib/session'
+import churchLogo from '../assets/church-logo.png'
 
 export function Icon({ name, size = 22 }: { name: 'book' | 'file' | 'users' | 'plus' | 'arrow' | 'upload'; size?: number }) {
   const paths = {
@@ -27,7 +28,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
 
   return <div className="student-app">
     <header className="student-topbar">
-      <Link className="student-brand" to="/home"><span className="brandmark"><span>▯</span></span><strong>신학원 문제은행</strong></Link>
+      <Link className="student-brand" to="/home"><img className="brand-logo" src={churchLogo} alt="사랑침례교회" /><strong>신학원 스터디 카페</strong></Link>
       <nav aria-label="주 메뉴">
         <Link to="/home" className={isHome ? 'active' : ''}>홈</Link>
         <Link to="/home" state={{ openStudy: true }}>학습하기</Link>
