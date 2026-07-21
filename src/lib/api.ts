@@ -243,6 +243,8 @@ export const api = {
   createProblemComment: (userToken: string, payload: { problemId: string; content: string }) => callFunction<{ success: true; comment: ProblemComment }>('create-problem-comment', { userToken, body: payload }),
   updateProblemComment: (userToken: string, payload: { commentId: string; content: string }) => callFunction<{ success: true }>('update-problem-comment', { userToken, body: payload }),
   deleteProblemComment: (userToken: string, commentId: string) => callFunction<{ success: true }>('delete-problem-comment', { userToken, body: { commentId } }),
+  toggleProblemBookmark: (userToken: string, problemId: string, bookmarked: boolean) => callFunction<{ success: true; bookmarked: boolean }>('toggle-problem-bookmark', { userToken, body: { problemId, bookmarked } }),
+  listBookmarkedProblems: (userToken: string) => callFunction<{ problems: Problem[] }>('list-bookmarked-problems', { userToken, method: 'GET' }),
 
   getActiveQuizSession: (userToken: string) =>
     callFunction<{ session: { sessionId: string; problems: Problem[]; resumeIndex: number } | null }>(
