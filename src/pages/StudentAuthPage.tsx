@@ -1,12 +1,17 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
+import { Icon } from '../components/StudentShell'
 import { api, ApiError } from '../lib/api'
 import { studentSession } from '../lib/session'
 
-const inputClass =
-  'w-full rounded-lg border border-neutral-300 px-3 py-2 text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
-
 type Step = 'phone' | 'login' | 'activate' | 'not-registered'
+
+const stepMeta: Record<Step, { title: string; subtitle: string; dot: number }> = {
+  phone: { title: '학생 로그인', subtitle: '등록된 휴대전화로 계정을 확인합니다.', dot: 0 },
+  login: { title: '비밀번호 입력', subtitle: '안전한 학습 공간으로 이동합니다.', dot: 1 },
+  activate: { title: '계정 활성화', subtitle: '본인 확인 후 새 비밀번호를 설정합니다.', dot: 2 },
+  'not-registered': { title: '등록 안내', subtitle: '관리자에게 등록을 문의해 주세요.', dot: 0 },
+}
 
 function errorMessage(code: string): string {
   switch (code) {
@@ -22,6 +27,8 @@ function errorMessage(code: string): string {
       return '비밀번호는 8자 이상이어야 합니다.'
     case 'already_active':
       return '이미 활성화된 계정입니다. 로그인해주세요.'
+    case 'rate_limited':
+      return '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.'
     default:
       return '오류가 발생했습니다. 잠시 후 다시 시도해주세요.'
   }
@@ -32,6 +39,7 @@ function StudentAuthPage() {
   const [step, setStep] = useState<Step>('phone')
   const [phone, setPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [notice, setNotice] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
   const [password, setPassword] = useState('')
@@ -42,9 +50,16 @@ function StudentAuthPage() {
   const [kjvYear, setKjvYear] = useState('')
   const [newPassword, setNewPassword] = useState('')
 
+  function goToStep(next: Step) {
+    setStep(next)
+    setError(null)
+    setNotice(null)
+  }
+
   async function handlePhoneSubmit(e: FormEvent) {
     e.preventDefault()
     setError(null)
+    setNotice(null)
     setLoading(true)
     try {
       const result = await api.checkPhone(phone)
@@ -55,8 +70,8 @@ function StudentAuthPage() {
       } else {
         setStep('activate')
       }
-    } catch {
-      setError(errorMessage('unknown'))
+    } catch (err) {
+      setError(errorMessage(err instanceof ApiError ? err.message : 'unknown'))
     } finally {
       setLoading(false)
     }
@@ -85,6 +100,7 @@ function StudentAuthPage() {
       await api.activateAccount({ phone, name, staffName, leaderName, kjvYear, password: newPassword })
       setPassword('')
       setStep('login')
+      setNotice('계정이 활성화되었습니다. 비밀번호로 로그인해 주세요.')
     } catch (err) {
       setError(errorMessage(err instanceof ApiError ? err.message : 'unknown'))
     } finally {
@@ -92,118 +108,163 @@ function StudentAuthPage() {
     }
   }
 
+  const meta = stepMeta[step]
+
   return (
-    <div className="min-h-svh flex items-center justify-center bg-white px-6 dark:bg-neutral-950">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-8 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <h1 className="mb-6 text-xl font-semibold text-neutral-900 dark:text-neutral-50">학생 로그인</h1>
-
-        {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
-
-        {step === 'phone' && (
-          <form onSubmit={handlePhoneSubmit} className="flex flex-col gap-3">
-            <input
-              className={inputClass}
-              type="tel"
-              placeholder="전화번호 (- 없이)"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark disabled:opacity-50"
-            >
-              다음
-            </button>
-          </form>
-        )}
-
-        {step === 'not-registered' && (
-          <div className="flex flex-col gap-3">
-            <p className="text-neutral-600 dark:text-neutral-400">
-              등록되지 않은 전화번호입니다. 관리자에게 문의해주세요.
-            </p>
-            <button
-              type="button"
-              onClick={() => setStep('phone')}
-              className="rounded-lg border border-neutral-300 px-4 py-2 font-medium dark:border-neutral-700"
-            >
-              돌아가기
-            </button>
+    <div className="auth-shell">
+      <div className="auth-frame">
+        <section className="auth-intro">
+          <div className="brand">
+            <span className="brandmark"><span>▯</span></span>
+            <strong>CBCK 문제은행</strong>
           </div>
-        )}
+          <div className="auth-intro-copy">
+            <p className="eyebrow">BIBLE STUDY · QUIZ BANK</p>
+            <h1>
+              배운 것을
+              <br />
+              <span className="accent-text">다시 꺼내는</span> 시간
+            </h1>
+            <p>나만의 문제를 만들고, 반복해서 풀며 말씀을 더 깊이 기억해 보세요.</p>
+            <div className="auth-bullets">
+              <span>
+                <i className="dot" />
+                개인 문제은행으로 차곡차곡
+              </span>
+              <span>
+                <i className="dot" />
+                오늘의 학습 흐름을 한눈에
+              </span>
+              <span>
+                <i className="dot" />
+                안전한 계정 인증과 세션 관리
+              </span>
+            </div>
+          </div>
+        </section>
 
-        {step === 'login' && (
-          <form onSubmit={handleLoginSubmit} className="flex flex-col gap-3">
-            <input
-              className={inputClass}
-              type="password"
-              placeholder="비밀번호"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark disabled:opacity-50"
-            >
-              로그인
-            </button>
-          </form>
-        )}
+        <section className="auth-card" aria-live="polite">
+          <h2>{meta.title}</h2>
+          <p className="sub">{meta.subtitle}</p>
+          <div className="auth-steps" aria-label="진행 단계">
+            {[0, 1, 2].map((i) => (
+              <i key={i} className={`auth-step ${i <= meta.dot ? 'on' : ''}`} />
+            ))}
+          </div>
 
-        {step === 'activate' && (
-          <form onSubmit={handleActivateSubmit} className="flex flex-col gap-3">
-            <p className="text-sm text-neutral-500 dark:text-neutral-400">
-              최초 로그인입니다. 본인 확인 후 비밀번호를 설정해주세요.
-            </p>
-            <input
-              className={inputClass}
-              placeholder="이름"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-            <input
-              className={inputClass}
-              placeholder="간사 이름"
-              value={staffName}
-              onChange={(e) => setStaffName(e.target.value)}
-              required
-            />
-            <input
-              className={inputClass}
-              placeholder="반장 이름"
-              value={leaderName}
-              onChange={(e) => setLeaderName(e.target.value)}
-              required
-            />
-            <input
-              className={inputClass}
-              placeholder="킹제임스 성경(영어) 출판연도 (예: 1611)"
-              value={kjvYear}
-              onChange={(e) => setKjvYear(e.target.value)}
-              required
-            />
-            <input
-              className={inputClass}
-              type="password"
-              placeholder="새 비밀번호 (8자 이상)"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-            />
-            <button
-              type="submit"
-              disabled={loading}
-              className="rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark disabled:opacity-50"
-            >
-              계정 활성화
-            </button>
-          </form>
-        )}
+          {error && <div className="notice error">{error}</div>}
+          {notice && !error && <div className="notice">{notice}</div>}
+
+          {step === 'phone' && (
+            <form onSubmit={handlePhoneSubmit}>
+              <div className="auth-field">
+                <label htmlFor="phone">휴대전화</label>
+                <input
+                  id="phone"
+                  className="field"
+                  type="tel"
+                  inputMode="numeric"
+                  placeholder="휴대전화 (- 없이)"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  required
+                />
+              </div>
+              <button type="submit" className="primary-button" disabled={loading}>
+                {loading ? '확인하는 중…' : '다음'} {!loading && <Icon name="arrow" size={18} />}
+              </button>
+            </form>
+          )}
+
+          {step === 'not-registered' && (
+            <div>
+              <div className="notice">등록되지 않은 휴대전화입니다. 관리자에게 등록을 문의해 주세요.</div>
+              <button type="button" className="secondary-button" onClick={() => goToStep('phone')}>
+                돌아가기
+              </button>
+            </div>
+          )}
+
+          {step === 'login' && (
+            <form onSubmit={handleLoginSubmit}>
+              <div className="notice">등록된 계정입니다. 비밀번호를 입력해 주세요.</div>
+              <div className="auth-field">
+                <label htmlFor="password">비밀번호</label>
+                <input
+                  id="password"
+                  className="field"
+                  type="password"
+                  placeholder="비밀번호"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <button type="submit" className="primary-button" disabled={loading}>
+                {loading ? '로그인하는 중…' : '로그인'} {!loading && <Icon name="arrow" size={18} />}
+              </button>
+              <button type="button" className="secondary-button" onClick={() => goToStep('phone')}>
+                휴대전화 다시 입력
+              </button>
+            </form>
+          )}
+
+          {step === 'activate' && (
+            <form onSubmit={handleActivateSubmit}>
+              <div className="notice">첫 로그인입니다. 본인 확인 질문에 답하고 비밀번호를 설정해 주세요.</div>
+              <div className="auth-field">
+                <label htmlFor="name">이름</label>
+                <input id="name" className="field" value={name} onChange={(e) => setName(e.target.value)} required />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="staff">간사 이름</label>
+                <input id="staff" className="field" value={staffName} onChange={(e) => setStaffName(e.target.value)} required />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="leader">반장 이름</label>
+                <input id="leader" className="field" value={leaderName} onChange={(e) => setLeaderName(e.target.value)} required />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="kjv">킹제임스 성경(영어) 출판연도</label>
+                <input
+                  id="kjv"
+                  className="field"
+                  inputMode="numeric"
+                  placeholder="예: 1611"
+                  value={kjvYear}
+                  onChange={(e) => setKjvYear(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="auth-field">
+                <label htmlFor="newPassword">새 비밀번호</label>
+                <input
+                  id="newPassword"
+                  className="field"
+                  type="password"
+                  minLength={8}
+                  placeholder="8자 이상"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  required
+                />
+              </div>
+              <button type="submit" className="primary-button" disabled={loading}>
+                {loading ? '처리하는 중…' : '계정 활성화'} {!loading && <Icon name="arrow" size={18} />}
+              </button>
+              <button type="button" className="secondary-button" onClick={() => goToStep('phone')}>
+                휴대전화 다시 입력
+              </button>
+            </form>
+          )}
+
+          <div className="auth-meta">
+            <span>처음 방문하셨나요?</span>
+            <Link className="admin-link" to="/admin/login">
+              관리자 로그인 →
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
   )

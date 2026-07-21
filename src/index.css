@@ -110,3 +110,31 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .preview-column { position:sticky; top:105px; }.preview-label { display:flex; justify-content:space-between; align-items:center; margin:0 3px 12px; }.preview-label span { font-size:12px; font-weight:700; color:#345745; }.preview-label small { font-size:10px; color:#8a958e; }.problem-preview { background:#fffefa; border:1px solid #e0e4dc; border-radius:16px; padding:34px 25px 25px; min-height:430px; box-shadow:0 16px 36px rgba(36,72,58,.09); position:relative; overflow:hidden; }.preview-bookmark { position:absolute; top:0; right:25px; width:25px; height:45px; background:var(--gold); clip-path:polygon(0 0,100% 0,100% 100%,50% 75%,0 100%); }.preview-meta { display:flex; gap:7px; margin-bottom:25px; }.preview-meta span { font-size:9px; border-radius:20px; background:#edf3ec; color:#456753; padding:5px 8px; }.preview-meta span:last-child { background:#f4f2e9; color:#796c50; }.problem-preview h2 { font-size:19px; line-height:1.55; letter-spacing:-.035em; min-height:60px; margin:0 0 23px; }.preview-options { display:grid; gap:8px; }.preview-options div { min-height:43px; border:1px solid #e1e6e1; border-radius:8px; display:flex; align-items:center; padding:8px 10px; font-size:11px; color:#7a847e; }.preview-options span { width:23px; height:23px; background:#f0f3ef; border-radius:50%; display:grid; place-items:center; margin-right:9px; flex:0 0 auto; }.preview-options div.answer { border-color:#85a08c; background:#f1f6f0; color:#345e48; }.preview-answer { border-radius:10px; background:#f3f6f1; padding:16px; margin-bottom:16px; }.preview-answer small,.preview-answer strong { display:block; }.preview-answer small { font-size:9px; color:#7a877f; margin-bottom:6px; }.preview-answer strong { font-size:13px; line-height:1.5; }.preview-answer p { font-size:9px; color:#718078; margin:8px 0 0; }.preview-reference { border-top:1px dashed #d7ddd7; margin-top:22px; padding-top:16px; }.preview-reference small,.preview-reference strong { display:block; }.preview-reference small { font-size:9px; color:#9a8356; margin-bottom:6px; }.preview-reference strong { font-size:11px; }.preview-reference p { font-size:10px; color:#7d8881; margin:5px 0 0; }.policy-note { border:1px solid #dfe6df; border-radius:11px; background:#f3f6f1; padding:17px 18px; margin-top:12px; }.policy-note strong { font-size:11px; }.policy-note p { font-size:10px; color:#5f6d65; margin:6px 0; }.policy-note span { font-size:9px; color:#8a958e; }.toast { position:fixed; left:50%; bottom:25px; transform:translateX(-50%); background:#173c2e; color:#fff; padding:12px 20px; border-radius:9px; z-index:80; box-shadow:0 10px 30px #173c2e40; font-size:14px; }.create-empty { padding:44px; text-align:center; }.create-empty .primary-button { margin-top:14px; }
 @media(max-width:950px){ .creator-grid { grid-template-columns:1fr; }.preview-column { position:static; display:grid; grid-template-columns:1fr 1fr; gap:12px; }.preview-label { grid-column:1/-1; }.problem-preview { min-height:400px; }.policy-note { margin-top:0; align-self:start; } }
 @media(max-width:650px){ .create-shell { padding:30px 16px 60px; }.create-heading { display:block; }.create-heading h1 { font-size:25px; }.csv-button { margin-top:20px; }.creator-section { padding:25px 20px; }.type-tabs { grid-template-columns:1fr; }.type-tabs button { min-height:74px; }.share-options { grid-template-columns:1fr; }.bible-fields { grid-template-columns:1fr 1fr; }.bible-fields .creator-field:first-child { grid-column:1/-1; }.preview-column { display:block; }.problem-preview { margin-top:12px; }.policy-note { margin-top:12px; }.creator-actions { padding:17px 20px; }.creator-error,.creator-success { margin-left:20px; margin-right:20px; }.creator-success { align-items:flex-start; flex-direction:column; } }
+
+/* Auth screens (student login/activation, admin login) */
+.auth-shell { min-height:100svh; background:var(--paper); display:flex; align-items:center; padding:40px 24px; }
+.auth-frame { max-width:1080px; margin:0 auto; width:100%; display:grid; grid-template-columns:1.05fr .95fr; gap:26px; align-items:stretch; }
+.auth-frame-solo { max-width:420px; margin:0 auto; width:100%; }
+.brand { display:flex; align-items:center; gap:12px; font-weight:700; color:var(--forest); font-size:17px; }
+.auth-intro { padding:38px 10px; }
+.auth-intro-copy { margin-top:88px; }
+.auth-intro h1 { font-size:clamp(31px,4vw,48px); line-height:1.15; letter-spacing:-.06em; margin:18px 0; }
+.auth-intro h1 .accent-text { color:var(--sage); }
+.auth-intro-copy>p { max-width:410px; color:var(--muted); line-height:1.75; margin:0; }
+.auth-bullets { display:grid; gap:12px; margin-top:34px; color:#4f6056; font-size:14px; }
+.auth-bullets span { display:flex; gap:10px; align-items:center; }
+.auth-bullets .dot { width:8px; height:8px; background:var(--gold); border-radius:50%; flex:0 0 auto; }
+.auth-card { background:#fff; border:1px solid var(--line); border-radius:22px; padding:34px; box-shadow:0 18px 50px rgba(36,72,58,.1); }
+.auth-card h2 { margin:0; font-size:24px; letter-spacing:-.04em; }
+.auth-card .sub { color:var(--muted); font-size:13px; line-height:1.6; margin:8px 0 22px; }
+.auth-steps { display:flex; gap:6px; margin-bottom:22px; }
+.auth-step { height:4px; flex:1; border-radius:9px; background:#edf1ed; }
+.auth-step.on { background:var(--sage); }
+.auth-field { display:grid; gap:7px; margin-top:14px; }
+.auth-field label { font-size:12px; font-weight:700; }
+.auth-card form .primary-button,.auth-card form .secondary-button,.auth-card>.secondary-button { width:100%; margin-top:20px; }
+.auth-card form .secondary-button { margin-top:10px; }
+.auth-meta { display:flex; justify-content:space-between; align-items:center; margin-top:22px; color:var(--muted); font-size:12px; }
+.admin-link { color:var(--forest); text-decoration:none; font-weight:700; }
+.admin-link:hover { text-decoration:underline; }
+@media(max-width:760px){ .auth-shell { padding:20px; }.auth-frame { grid-template-columns:1fr!important; }.auth-intro { padding:10px 4px; }.auth-intro-copy { margin-top:24px; }.auth-intro h1 { font-size:34px; }.auth-bullets { display:none; }.auth-card { padding:25px; } }

@@ -1,10 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
 import { adminSession } from '../../lib/session'
-
-const inputClass =
-  'w-full rounded-lg border border-neutral-300 px-3 py-2 text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
 
 function AdminLoginPage() {
   const navigate = useNavigate()
@@ -43,65 +40,84 @@ function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-svh items-center justify-center bg-white px-4 dark:bg-neutral-950">
-      <div className="w-full max-w-sm rounded-2xl border border-neutral-200 bg-white p-6 shadow-sm dark:border-neutral-800 dark:bg-neutral-900">
-        <h1 className="mb-6 text-xl font-semibold text-neutral-900 dark:text-neutral-50">
-          {setupMode ? '초기 관리자 생성' : '관리자 로그인'}
-        </h1>
-        {error && <p className="mb-4 text-sm text-red-500">{error}</p>}
-        <form onSubmit={submit} className="flex flex-col gap-3">
-          {setupMode ? (
-            <>
-              <input className={inputClass} value="admin" disabled placeholder="관리자 ID" />
-              <p className="text-xs text-neutral-500">최초 생성 시 관리자 ID는 admin으로 고정됩니다.</p>
-            </>
-          ) : (
-            <input
-              className={inputClass}
-              placeholder="아이디"
-              value={loginId}
-              onChange={(e) => setLoginId(e.target.value)}
-              required
-            />
-          )}
-          <input
-            className={inputClass}
-            type="password"
-            placeholder="비밀번호"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          {setupMode && (
-            <input
-              className={inputClass}
-              type="password"
-              placeholder="비밀번호 확인"
-              value={confirm}
-              onChange={(e) => setConfirm(e.target.value)}
-              required
-            />
-          )}
+    <div className="auth-shell">
+      <div className="auth-frame-solo">
+        <div className="brand" style={{ marginBottom: 24, justifyContent: 'center' }}>
+          <span className="brandmark">
+            <span>▯</span>
+          </span>
+          <strong>CBCK 문제은행</strong>
+        </div>
+        <section className="auth-card">
+          <h2>{setupMode ? '초기 관리자 생성' : '관리자 로그인'}</h2>
+          <p className="sub">{setupMode ? '이 프로젝트의 첫 관리자 계정을 만듭니다.' : '등록된 관리자 계정으로 로그인합니다.'}</p>
+          {error && <div className="notice error">{error}</div>}
+          <form onSubmit={submit}>
+            {setupMode ? (
+              <div className="auth-field">
+                <label htmlFor="adminId">관리자 ID</label>
+                <input id="adminId" className="field" value="admin" disabled />
+                <span style={{ fontSize: 11, color: 'var(--muted)' }}>최초 생성 시 관리자 ID는 admin으로 고정됩니다.</span>
+              </div>
+            ) : (
+              <div className="auth-field">
+                <label htmlFor="adminId">아이디</label>
+                <input
+                  id="adminId"
+                  className="field"
+                  value={loginId}
+                  onChange={(e) => setLoginId(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+            <div className="auth-field">
+              <label htmlFor="adminPassword">비밀번호</label>
+              <input
+                id="adminPassword"
+                className="field"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {setupMode && (
+              <div className="auth-field">
+                <label htmlFor="adminPasswordConfirm">비밀번호 확인</label>
+                <input
+                  id="adminPasswordConfirm"
+                  className="field"
+                  type="password"
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  required
+                />
+              </div>
+            )}
+            <button type="submit" className="primary-button" disabled={loading}>
+              {loading ? '처리하는 중…' : setupMode ? '관리자 생성' : '로그인'}
+            </button>
+          </form>
           <button
-            type="submit"
-            disabled={loading}
-            className="rounded-lg bg-accent px-4 py-2 font-medium text-white disabled:opacity-50"
+            type="button"
+            onClick={() => {
+              setSetupMode(!setupMode)
+              setError(null)
+              setPassword('')
+              setConfirm('')
+            }}
+            className="admin-link"
+            style={{ display: 'block', width: '100%', textAlign: 'center', marginTop: 18, background: 'none', border: 0, cursor: 'pointer' }}
           >
-            {setupMode ? '관리자 생성' : '로그인'}
+            {setupMode ? '로그인으로 돌아가기' : '초기 관리자 생성'}
           </button>
-        </form>
-        <button
-          type="button"
-          onClick={() => {
-            setSetupMode(!setupMode)
-            setError(null)
-            setPassword('')
-            setConfirm('')
-          }}
-          className="mt-4 w-full text-sm text-accent hover:underline"
-        >
-          {setupMode ? '로그인으로 돌아가기' : '초기 관리자 생성'}
-        </button>
+          <div className="auth-meta" style={{ justifyContent: 'center' }}>
+            <Link className="admin-link" to="/login">
+              ← 학생 로그인으로
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
   )
