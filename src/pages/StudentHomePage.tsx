@@ -69,6 +69,7 @@ function StudentHomePage() {
 
   useEffect(() => {
     if ((location.state as { openStudy?: boolean } | null)?.openStudy) {
+      setQuizOpen(true)
       navigate('/home', { replace: true, state: null })
     }
   }, [location.state, navigate])
