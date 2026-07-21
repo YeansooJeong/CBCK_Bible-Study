@@ -34,6 +34,7 @@ function StudentHomePage() {
   const [submitting, setSubmitting] = useState(false)
   const [activeSession, setActiveSession] = useState<{ sessionId: string; problems: Problem[]; resumeIndex: number } | null>(null)
   const [bookmarkedProblems, setBookmarkedProblems] = useState<Problem[]>([])
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set())
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false)
 
   useEffect(() => {
@@ -49,7 +50,7 @@ function StudentHomePage() {
 
   useEffect(() => {
     const token = studentSession.get()
-    if (token) api.listBookmarkedProblems(token).then(({ problems: rows }) => setBookmarkedProblems(rows)).catch(() => undefined)
+    if (token) api.listBookmarkedProblems(token).then(({ problems: rows }) => { setBookmarkedProblems(rows); setBookmarkedIds(new Set(rows.map((row) => row.id))) }).catch(() => undefined)
   }, [])
 
   function resumeQuiz() {
@@ -92,6 +93,15 @@ function StudentHomePage() {
 
   function openBookmarkedQuiz() {
     setSelectedProject(''); setSelectedCourse(''); setSelectedSession(''); setBookmarkedOnly(true); setQuizOpen(true); setSessionId(null); setProblems([]); setSummary(null); setError('')
+  }
+
+  async function toggleBookmark() {
+    const token = studentSession.get()
+    if (!token || !question) return
+    const bookmarked = !bookmarkedIds.has(question.id)
+    await api.toggleProblemBookmark(token, question.id, bookmarked)
+    setBookmarkedIds((current) => { const next = new Set(current); bookmarked ? next.add(question.id) : next.delete(question.id); return next })
+    setBookmarkedProblems((current) => bookmarked ? [...current, question] : current.filter((item) => item.id !== question.id))
   }
   function closeQuiz() { if (!submitting) { setQuizOpen(false); setSessionId(null); setProblems([]); setSummary(null) } }
 
@@ -140,7 +150,7 @@ function StudentHomePage() {
   }
 
   if (!user) return null
-  return <StudentShell><main className="student-shell">
+  return <StudentShell>{question && quizOpen && sessionId && <button type="button" className="fixed bottom-6 right-6 z-50 rounded-full bg-accent px-4 py-3 text-sm font-medium text-white shadow-lg" onClick={toggleBookmark}>{bookmarkedIds.has(question.id) ? '★ 북마크됨' : '☆ 북마크'}</button>}<main className="student-shell">
     <section className="welcome-row">
       <div><h1>{greeting}, {user.displayName}님</h1><p>오늘도 말씀을 차분히 익혀보세요.</p></div>
       <p className="today-date">{dateLabel}</p>
