@@ -14,6 +14,9 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
   const [editAnswer, setEditAnswer] = useState('')
   const [editOptions, setEditOptions] = useState(['', '', '', ''])
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [query, setQuery] = useState('')
+  const [typeFilter, setTypeFilter] = useState<ProblemType | 'all'>('all')
+  const [courseFilter, setCourseFilter] = useState('')
 
   async function load() {
     try {
@@ -74,6 +77,13 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
     setExpandedIds((current) => current.size === problems.length ? new Set() : new Set(problems.map((p) => p.id)))
   }
 
+  const normalizedQuery = query.trim().toLocaleLowerCase()
+  const filteredProblems = problems.filter((p) => {
+    const searchable = `${p.question} ${p.answer} ${p.ownerName} ${p.projectTitle} ${p.refCourse ?? ''} ${p.refSession ?? ''}`.toLocaleLowerCase()
+    return (!normalizedQuery || searchable.includes(normalizedQuery)) && (typeFilter === 'all' || p.type === typeFilter) && (!courseFilter || p.refCourse === courseFilter)
+  })
+  const courses = [...new Set(problems.map((p) => p.refCourse).filter((value): value is string => Boolean(value)))].sort()
+
   return (
     <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
       <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">문제 관리</h2>
@@ -83,8 +93,17 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
           {expandedIds.size === problems.length ? '전체 접기' : '전체 펼치기'}
         </button>}
       </div>
+      <div className="mb-4 grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+        <input className={inputClass} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="문제·정답·출제자·프로젝트 검색" />
+        <select className={inputClass} value={typeFilter} onChange={(e) => setTypeFilter(e.target.value as ProblemType | 'all')}>
+          <option value="all">전체 유형</option><option value="mcq">객관식</option><option value="short">단답형</option><option value="bible">성경문제</option>
+        </select>
+        <select className={inputClass} value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)}>
+          <option value="">전체 과정</option>{courses.map((course) => <option key={course} value={course}>{course}</option>)}
+        </select>
+      </div>
       <ul className="flex flex-col gap-3 text-sm">
-        {problems.map((p) =>
+        {filteredProblems.map((p) =>
           editingId === p.id ? (
             <li key={p.id} className="rounded-lg border border-accent p-3">
               <p className="mb-2 text-xs text-neutral-400">
