@@ -146,14 +146,28 @@ export const api = {
       method: 'GET',
     }),
 
-  startQuizSession: (userToken: string, payload: { projectId?: string; count?: number }) =>
-    callFunction<{ success: true; sessionId: string; problems: Problem[] }>('start-quiz-session', { userToken, body: payload }),
+  startQuizSession: (
+    userToken: string,
+    payload: { projectId?: string; refCourse?: string; refSession?: string; count?: number },
+  ) => callFunction<{ success: true; sessionId: string; problems: Problem[] }>('start-quiz-session', { userToken, body: payload }),
+
+  listQuizScopes: (userToken: string, projectId?: string) =>
+    callFunction<{ courses: Array<{ course: string; sessions: string[] }> }>(
+      `list-quiz-scopes${projectId ? `?projectId=${projectId}` : ''}`,
+      { userToken, method: 'GET' },
+    ),
 
   submitAnswer: (userToken: string, payload: { sessionId: string; problemId: string; userAnswer: string }) =>
     callFunction<{ success: true; isCorrect: boolean; matchScore: number }>('submit-answer', { userToken, body: payload }),
 
   finishQuizSession: (userToken: string, sessionId: string) =>
-    callFunction<{ success: true; total: number; correct: number; score: number }>('finish-quiz-session', { userToken, body: { sessionId } }),
+    callFunction<{
+      success: true
+      total: number
+      correct: number
+      score: number
+      weakAreas: Array<{ refCourse: string; refSession: string; total: number; correct: number; rate: number }>
+    }>('finish-quiz-session', { userToken, body: { sessionId } }),
 
   quizHistory: (userToken: string) =>
     callFunction<{ sessions: Array<{ id: string; started_at: string; total: number; correct: number }> }>('quiz-history', { userToken, method: 'GET' }),

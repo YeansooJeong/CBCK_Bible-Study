@@ -8,18 +8,26 @@ Deno.serve(async (req) => {
   try {
     const userId = await requireUser(req, Deno.env.get('SESSION_JWT_SECRET')!)
     if (!userId) return json({ error: 'unauthorized' }, 401)
-    const { projectId, refCourse, refSession, count: requestedCount } = await req.json().catch(() => ({}))
-    const count = Math.min(Math.max(Number(requestedCount) || 10, 1), 50)
+
+    const url = new URL(req.url)
+    const projectId = url.searchParams.get('projectId') || undefined
+
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     const visible = await fetchVisibleProblems(supabase, userId, projectId)
-    const filtered = visible.filter(
-      (p: any) => (!refCourse || p.ref_course === refCourse) && (!refSession || p.ref_session === refSession),
-    )
-    const selected = filtered.sort(() => Math.random() - 0.5).slice(0, count)
-    if (!selected.length) return json({ error: 'no_available_problems' }, 400)
-    const { data: session, error: sessionError } = await supabase.from('quiz_sessions').insert({ user_id: userId, total: selected.length }).select('id').single()
-    if (sessionError) throw sessionError
-    return json({ success: true, sessionId: session.id, problems: selected.map(({ projects: _projects, ...problem }: any) => problem) })
+
+    const courseMap = new Map<string, Set<string>>()
+    for (const p of visible as any[]) {
+      if (!p.ref_course) continue
+      if (!courseMap.has(p.ref_course)) courseMap.set(p.ref_course, new Set())
+      if (p.ref_session) courseMap.get(p.ref_course)!.add(p.ref_session)
+    }
+
+    const courses = Array.from(courseMap.entries()).map(([course, sessions]) => ({
+      course,
+      sessions: Array.from(sessions),
+    }))
+
+    return json({ courses })
   } catch (error) { console.error(error); return json({ error: 'internal_error' }, 500) }
 })
 
