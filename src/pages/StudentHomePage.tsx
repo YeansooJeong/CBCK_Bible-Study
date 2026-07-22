@@ -53,6 +53,8 @@ function StudentHomePage() {
 
   const [weeklyGoal, setWeeklyGoal] = useState(readStoredWeeklyGoal)
   const [weeklySettingsOpen, setWeeklySettingsOpen] = useState(false)
+  const [historyDeleting, setHistoryDeleting] = useState(false)
+  const [historyDeleteMessage, setHistoryDeleteMessage] = useState('')
 
   const [flashOpen, setFlashOpen] = useState(false)
   const [flashProject, setFlashProject] = useState('')
@@ -124,6 +126,23 @@ function StudentHomePage() {
   function resetWeeklyGoal() {
     setWeeklyGoal(DEFAULT_WEEKLY_GOAL)
     localStorage.removeItem(WEEKLY_GOAL_KEY)
+  }
+
+  async function handleDeleteHistory() {
+    const token = studentSession.get()
+    if (!token) return
+    if (!window.confirm('지금까지 쌓인 학습 기록(퀴즈 결과)을 전부 삭제할까요? 이 작업은 되돌릴 수 없습니다. 등록된 문제나 북마크는 삭제되지 않습니다.')) return
+    setHistoryDeleting(true)
+    try {
+      await api.deleteQuizHistory(token)
+      setHistory([])
+      setActiveSession(null)
+      setHistoryDeleteMessage('학습 기록을 모두 삭제했습니다.')
+    } catch {
+      setHistoryDeleteMessage('학습 기록 삭제에 실패했습니다.')
+    } finally {
+      setHistoryDeleting(false)
+    }
   }
 
   const greeting = new Date().getHours() >= 18 ? '평안한 저녁이에요' : '평안한 하루예요'
@@ -317,6 +336,10 @@ function StudentHomePage() {
             <p>주간 목표(일)</p>
             <div className="count-options">{[3, 5, 7].map((days) => <button type="button" key={days} className={weeklyGoal === days ? 'chosen' : ''} onClick={() => updateWeeklyGoal(days)}>{days}일</button>)}</div>
             <button type="button" className="text-link" onClick={resetWeeklyGoal}>기본값(5일)으로</button>
+            <hr className="weekly-settings-divider" />
+            <p>학습 기록</p>
+            {historyDeleteMessage && <span className="weekly-settings-note">{historyDeleteMessage}</span>}
+            <button type="button" className="weekly-settings-danger" disabled={historyDeleting} onClick={handleDeleteHistory}>{historyDeleting ? '삭제하는 중…' : '학습 기록 전체 삭제'}</button>
           </div>}
         </div>
         <div className="progress-ring" style={{ '--progress': `${weekly.progress}%` } as React.CSSProperties}><div><strong>{weekly.progress}</strong><span>%</span></div></div>

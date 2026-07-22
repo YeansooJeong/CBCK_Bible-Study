@@ -241,6 +241,9 @@ export const api = {
   quizHistory: (userToken: string) =>
     callFunction<{ sessions: Array<{ id: string; started_at: string; total: number; correct: number }> }>('quiz-history', { userToken, method: 'GET' }),
 
+  deleteQuizHistory: (userToken: string) =>
+    callFunction<{ success: true; deleted: number }>('delete-quiz-history', { userToken, body: {} }),
+
   listProblemComments: (userToken: string, problemId: string) => callFunction<{ comments: ProblemComment[] }>(`list-problem-comments?problemId=${problemId}`, { userToken, method: 'GET' }),
   createProblemComment: (userToken: string, payload: { problemId: string; content: string }) => callFunction<{ success: true; comment: ProblemComment }>('create-problem-comment', { userToken, body: payload }),
   updateProblemComment: (userToken: string, payload: { commentId: string; content: string }) => callFunction<{ success: true }>('update-problem-comment', { userToken, body: payload }),

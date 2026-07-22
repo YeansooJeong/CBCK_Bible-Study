@@ -66,6 +66,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .weekly-settings-panel p { margin:0; font-size:12px; font-weight:700; color:#4c5a52; }
 .weekly-settings-panel .count-options { grid-template-columns:repeat(3,1fr); }
 .weekly-settings-panel .text-link { font-size:12px; }
+.weekly-settings-divider { border:0; border-top:1px solid var(--line); margin:2px 0; }
+.weekly-settings-note { font-size:11px; color:#4c7a5c; }
+.weekly-settings-danger { border:1px solid #e0b39b; background:#fbefeb; color:#a04f38; border-radius:8px; padding:8px 10px; font-size:12px; font-weight:700; cursor:pointer; }
 .progress-ring { width:170px; height:170px; margin:4px auto 8px; border-radius:50%; display:grid; place-items:center; background:conic-gradient(#668b73 0 var(--progress),#eff2ed var(--progress)); position:relative; }
 .progress-ring:before { content:""; position:absolute; inset:11px; border-radius:50%; background:white; }
 .progress-ring div { position:relative; color:#174331; }.progress-ring strong { font-size:49px; letter-spacing:-.05em; }.progress-ring span { font-size:25px; font-weight:700; }
