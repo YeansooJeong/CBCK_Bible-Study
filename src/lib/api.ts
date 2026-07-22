@@ -256,7 +256,7 @@ export const api = {
 
   listFlashcardProblems: (
     userToken: string,
-    payload: { projectId?: string; refCourse?: string; refSession?: string; bookmarkedOnly?: boolean },
+    payload: { projectId?: string; refCourse?: string; refSession?: string; bookmarkedOnly?: boolean; count?: number },
   ) => callFunction<{ problems: Problem[] }>('list-flashcard-problems', { userToken, body: payload }),
 
   createProblem: (

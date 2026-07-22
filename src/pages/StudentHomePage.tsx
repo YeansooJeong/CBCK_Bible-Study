@@ -46,6 +46,7 @@ function StudentHomePage() {
   const [flashProject, setFlashProject] = useState('')
   const [flashSession, setFlashSession] = useState('')
   const [flashBookmarkedOnly, setFlashBookmarkedOnly] = useState(false)
+  const [flashCount, setFlashCount] = useState(10)
   const [flashScopes, setFlashScopes] = useState<Scope[]>([])
   const [flashCards, setFlashCards] = useState<Problem[]>([])
   const [flashIndex, setFlashIndex] = useState(0)
@@ -157,6 +158,7 @@ function StudentHomePage() {
         projectId: flashProject || undefined,
         refSession: flashSession || undefined,
         bookmarkedOnly: flashBookmarkedOnly,
+        count: flashCount,
       })
       if (!data.problems.length) { setFlashError('선택한 범위에 학습할 문제가 없습니다.'); return }
       setFlashCards(data.problems); setFlashIndex(0); setFlashRevealed(false)
@@ -299,7 +301,7 @@ function StudentHomePage() {
       {error && <div className="notice error">{error}</div>}
       <label>학습 범위<select value={selectedProject} onChange={(event) => { setSelectedProject(event.target.value); setSelectedSession('') }}><option value="">전체 문제</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
       {selectedProject && (scopes[0]?.sessions.length ?? 0) > 0 && <label>회차<select value={selectedSession} onChange={(event) => setSelectedSession(event.target.value)}><option value="">전체 회차 ({projects.find((p) => p.id === selectedProject)?.session_count ?? scopes[0].sessions.length}강 전체)</option>{[...scopes[0].sessions].sort((a, b) => Number(a) - Number(b)).map((session) => <option key={session} value={session}>{session}강</option>)}</select></label>}
-      <label>문제 수<div className="count-options">{[5, 10, 20].map((value) => <button type="button" className={count === value ? 'chosen' : ''} onClick={() => setCount(value)} key={value}>{value}문제</button>)}</div></label>
+      <label>문제 수<div className="count-options">{[5, 10, 20, 50].map((value) => <button type="button" className={count === value ? 'chosen' : ''} onClick={() => setCount(value)} key={value}>{value}문제</button>)}</div></label>
       <button className="primary-button wide" disabled={submitting} onClick={startQuiz}>{submitting ? '문제를 준비하는 중…' : `${count}문제 학습 시작`} {!submitting && <Icon name="arrow"/>}</button>
     </div> : summary ? <div className="quiz-result"><div className="result-ring" style={{ '--score': `${summary.score}%` } as React.CSSProperties}><strong>{summary.score}</strong><span>점</span></div><p className="eyebrow">학습 완료</p><h2 id="quiz-title">오늘의 복습을 마쳤어요</h2><p>{summary.total}문제 중 <strong>{summary.correct}문제</strong>를 맞혔습니다.<br/>틀린 문제의 레퍼런스를 다시 확인해 보세요.</p>
       {summary.weakAreas.some((area) => area.rate < 100) && <div className="weak-areas">
@@ -336,7 +338,8 @@ function StudentHomePage() {
       {flashError && <div className="notice error">{flashError}</div>}
       <label>학습 범위<select value={flashProject} onChange={(event) => { setFlashProject(event.target.value); setFlashSession('') }}><option value="">전체 문제</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
       {flashProject && (flashScopes[0]?.sessions.length ?? 0) > 0 && <label>회차<select value={flashSession} onChange={(event) => setFlashSession(event.target.value)}><option value="">전체 회차</option>{[...flashScopes[0].sessions].sort((a, b) => Number(a) - Number(b)).map((session) => <option key={session} value={session}>{session}강</option>)}</select></label>}
-      <button className="primary-button wide" disabled={flashLoading} onClick={startFlashcards}>{flashLoading ? '카드를 준비하는 중…' : '플래시카드 시작'} {!flashLoading && <Icon name="arrow" />}</button>
+      <label>카드 수<div className="count-options">{[5, 10, 20, 50].map((value) => <button type="button" className={flashCount === value ? 'chosen' : ''} onClick={() => setFlashCount(value)} key={value}>{value}장</button>)}</div></label>
+      <button className="primary-button wide" disabled={flashLoading} onClick={startFlashcards}>{flashLoading ? '카드를 준비하는 중…' : `${flashCount}장 시작`} {!flashLoading && <Icon name="arrow" />}</button>
     </div> : flashDone ? <div className="quiz-result"><p className="eyebrow">학습 완료</p><h2 id="flash-title">전체 {flashCards.length}장 중 {flashKnown.size}장을 알고 계셨어요</h2><p>모르는 문제 {flashUnknown.size}장은 북마크에 담아 나중에 다시 볼 수 있어요.</p>
       <div className="result-actions">
         {flashUnknown.size > 0 && <button className="secondary-button" onClick={restartUnknownFlashcards}>모르는 문제만 다시보기</button>}
