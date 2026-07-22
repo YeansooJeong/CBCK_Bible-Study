@@ -3,6 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, type Problem, type ProblemShareScope, type Project } from '../lib/api'
 import { studentSession } from '../lib/session'
 import { parseCsvLine, downloadCsv } from '../lib/csv'
+import { formatBibleAnswer } from '../lib/format'
 import StudentShell, { Icon } from '../components/StudentShell'
 
 const typeLabel: Record<Problem['type'], string> = { mcq: '4지선다', short: '단답형', bible: '성경문제' }
@@ -44,6 +45,10 @@ type | question | option1 | option2 | option3 | option4 | answer | keywords | re
 [여기에 소스 자료(강의 스크립트, PDF 텍스트 등)를 붙여넣으세요]`
 }
 
+const VALID_PROBLEM_TYPES: Problem['type'][] = ['mcq', 'short', 'bible']
+
+// 값이 없어야 할 자리(예: mcq가 아닌 유형의 보기 칸)까지 셀 개수는 항상 헤더와 맞아야 하며,
+// AI가 생성한 CSV에서 따옴표 누락 등으로 열이 밀리면 이 단계에서 바로 잡아낸다.
 function parseCsv(text: string) {
   const rows = text.trim().split(/\r?\n/).map(parseCsvLine)
   if (rows.length < 5) throw new Error('no_data')
@@ -51,15 +56,24 @@ function parseCsv(text: string) {
   const required = ['type', 'question', 'answer']
   if (required.some((h) => !headers.includes(h))) throw new Error('header')
   // 1행 헤더 + 2~4행 예시는 건너뛰고 5행부터 실제 데이터로 읽음
-  const dataRows = rows.slice(4).filter((r) => r.some(Boolean))
+  const dataRows = rows
+    .slice(4)
+    .map((cells, i) => ({ cells, rowNumber: i + 5 }))
+    .filter(({ cells }) => cells.some(Boolean))
   if (dataRows.length === 0) throw new Error('no_data')
-  return dataRows.map((r) => {
+  return dataRows.map(({ cells: r, rowNumber }) => {
+    if (r.length !== headers.length) throw new Error(`row_columns:${rowNumber}`)
     const value = (name: string) => r[headers.indexOf(name)] ?? ''
+    const type = value('type') as Problem['type']
+    if (!VALID_PROBLEM_TYPES.includes(type)) throw new Error(`row_type:${rowNumber}`)
+    if (!value('question').trim()) throw new Error(`row_question:${rowNumber}`)
+    if (!value('answer').trim()) throw new Error(`row_answer:${rowNumber}`)
     const options = ['1', '2', '3', '4'].map((n) => value(`option${n}`))
+    if (type === 'mcq' && options.some((v) => !v.trim())) throw new Error(`row_options:${rowNumber}`)
     return {
-      type: value('type') as Problem['type'],
+      type,
       question: value('question'),
-      options: value('type') === 'mcq' ? Object.fromEntries(options.map((v, i) => [String(i + 1), v])) : undefined,
+      options: type === 'mcq' ? Object.fromEntries(options.map((v, i) => [String(i + 1), v])) : undefined,
       answer: value('answer'),
       keywords: value('keywords') || undefined,
       refSession: value('ref_session') || undefined,
@@ -67,6 +81,27 @@ function parseCsv(text: string) {
       refDetail: value('ref_detail') || undefined,
     }
   })
+}
+
+function describeCsvError(err: unknown): string {
+  const code = err instanceof Error ? err.message : ''
+  if (code === 'header') return '컬럼명(1행)이 올바르지 않습니다. 샘플 양식을 참고해주세요.'
+  if (code === 'no_data') return '5행부터 실제 문제 데이터를 입력해주세요.'
+  const [reason, rowNumber] = code.split(':')
+  switch (reason) {
+    case 'row_columns':
+      return `${rowNumber}행의 열 개수가 헤더와 맞지 않습니다. 값 안에 쉼표가 있으면 큰따옴표로 감싸주세요.`
+    case 'row_type':
+      return `${rowNumber}행의 유형(type)이 mcq/short/bible 중 하나가 아닙니다.`
+    case 'row_question':
+      return `${rowNumber}행에 문제 내용이 비어 있습니다.`
+    case 'row_answer':
+      return `${rowNumber}행에 정답이 비어 있습니다.`
+    case 'row_options':
+      return `${rowNumber}행은 4지선다인데 보기 4개 중 비어 있는 칸이 있습니다.`
+    default:
+      return 'CSV 업로드에 실패했습니다.'
+  }
 }
 
 function ProjectDetailPage() {
@@ -196,13 +231,7 @@ function ProjectDetailPage() {
                   setCsvMessage(`${imported.length}개 문제가 등록되었습니다.`)
                   await reload(token, projectId!)
                 } catch (err) {
-                  const message =
-                    err instanceof Error && err.message === 'header'
-                      ? '컬럼명(1행)이 올바르지 않습니다. 샘플 양식을 참고해주세요.'
-                      : err instanceof Error && err.message === 'no_data'
-                        ? '5행부터 실제 문제 데이터를 입력해주세요.'
-                        : 'CSV 업로드에 실패했습니다.'
-                  setCsvMessage(message)
+                  setCsvMessage(describeCsvError(err))
                 }
                 e.target.value = ''
               }}
@@ -240,7 +269,7 @@ function ProjectDetailPage() {
                 )}
               </div>
               <p>{problem.question}</p>
-              <p className="problem-answer">정답: {problem.answer}</p>
+              <p className="problem-answer">정답: {problem.type === 'bible' ? formatBibleAnswer(problem.answer) : problem.answer}</p>
               {problem.author_id === userId && problemSharePickerId === problem.id && (
                 <div style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
                   <div style={{ display: 'grid', gap: 6, maxHeight: 180, overflowY: 'auto' }}>

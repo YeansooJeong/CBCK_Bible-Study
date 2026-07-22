@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api, type ModeratedProblem, type ProblemType } from '../lib/api'
+import { formatBibleAnswer } from '../lib/format'
 
 const typeLabel: Record<ProblemType, string> = { mcq: '4지선다', short: '단답형', bible: '성경문제' }
 
@@ -140,7 +141,7 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
                   {p.projectTitle} · {p.ownerName} · {typeLabel[p.type]}
                 </p>
                 <p className={`text-neutral-900 dark:text-neutral-50 ${expandedIds.has(p.id) ? '' : 'line-clamp-2'}`}>{p.question}</p>
-                <p className="text-xs text-neutral-500">정답: {p.answer}</p>
+                <p className="text-xs text-neutral-500">정답: {p.type === 'bible' ? formatBibleAnswer(p.answer) : p.answer}</p>
               </div>
               <div className="flex shrink-0 flex-wrap justify-end gap-2 text-xs sm:text-sm">
                 <button type="button" onClick={() => toggleExpanded(p.id)} className="text-neutral-500 hover:underline">

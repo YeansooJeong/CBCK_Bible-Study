@@ -21,7 +21,8 @@ Deno.serve(async (req) => {
     const { count } = await supabase.from('problems').select('id', { count: 'exact', head: true }).eq('project_id', projectId)
     if ((count ?? 0) + problems.length > MAX_PROBLEMS_PER_PROJECT) return json({ error: 'project_full' }, 400)
     const rows = problems.map((p: any) => {
-      if (!VALID_TYPES.includes(p.type) || !p.question || !p.answer) throw new Error('invalid_problem')
+      if (!VALID_TYPES.includes(p.type) || !String(p.question ?? '').trim() || !String(p.answer ?? '').trim()) throw new Error('invalid_problem')
+      if (p.type === 'mcq' && (!p.options || ['1', '2', '3', '4'].some((k) => !String(p.options[k] ?? '').trim()))) throw new Error('invalid_problem')
       if (p.refKind && !VALID_REF_KINDS.includes(p.refKind)) throw new Error('invalid_problem')
       if (p.refSession) {
         const sessionNumber = Number(p.refSession)

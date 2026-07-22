@@ -34,6 +34,12 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
+    if (type === 'mcq' && (!options || ['1', '2', '3', '4'].some((k) => !String(options[k] ?? '').trim()))) {
+      return new Response(JSON.stringify({ error: 'incomplete_options' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
+    }
     if (shareScope && !VALID_SHARE_SCOPES.includes(shareScope)) {
       return new Response(JSON.stringify({ error: 'invalid_share_scope' }), {
         status: 400,
