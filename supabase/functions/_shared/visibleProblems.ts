@@ -2,11 +2,11 @@
 
 // 프로젝트는 항상 전체 공개 커리큘럼 과목이므로 문제 단위 share_scope만 본다.
 // 'inherit'는 더 이상 프로젝트 단위 공유를 참조할 필요가 없어 'all'과 동일하게 취급한다.
-export async function fetchVisibleProblems(supabase: any, userId: string, projectId?: string) {
+export async function fetchVisibleProblems(supabase: any, userId: string, projectId?: string, includeAnswer = false) {
   let query = supabase
     .from('problems')
     .select(
-      'id, project_id, author_id, type, question, options, keywords, ref_course, ref_session, ref_kind, ref_detail, share_scope, created_at',
+      `id, project_id, author_id, type, question, options, keywords, ref_course, ref_session, ref_kind, ref_detail, share_scope, created_at${includeAnswer ? ', answer' : ''}`,
     )
     .limit(500)
   if (projectId) query = query.eq('project_id', projectId)

@@ -254,6 +254,11 @@ export const api = {
       { userToken, method: 'GET' },
     ),
 
+  listFlashcardProblems: (
+    userToken: string,
+    payload: { projectId?: string; refCourse?: string; refSession?: string; bookmarkedOnly?: boolean },
+  ) => callFunction<{ problems: Problem[] }>('list-flashcard-problems', { userToken, body: payload }),
+
   createProblem: (
     userToken: string,
     payload: {

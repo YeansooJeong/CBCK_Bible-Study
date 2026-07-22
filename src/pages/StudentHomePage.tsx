@@ -42,6 +42,20 @@ function StudentHomePage() {
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null)
   const [editingCommentText, setEditingCommentText] = useState('')
 
+  const [flashOpen, setFlashOpen] = useState(false)
+  const [flashProject, setFlashProject] = useState('')
+  const [flashSession, setFlashSession] = useState('')
+  const [flashBookmarkedOnly, setFlashBookmarkedOnly] = useState(false)
+  const [flashScopes, setFlashScopes] = useState<Scope[]>([])
+  const [flashCards, setFlashCards] = useState<Problem[]>([])
+  const [flashIndex, setFlashIndex] = useState(0)
+  const [flashRevealed, setFlashRevealed] = useState(false)
+  const [flashKnown, setFlashKnown] = useState<Set<string>>(new Set())
+  const [flashUnknown, setFlashUnknown] = useState<Set<string>>(new Set())
+  const [flashDone, setFlashDone] = useState(false)
+  const [flashLoading, setFlashLoading] = useState(false)
+  const [flashError, setFlashError] = useState('')
+
   useEffect(() => {
     const token = studentSession.get()
     if (!token || !user) { navigate('/login'); return }
@@ -111,6 +125,66 @@ function StudentHomePage() {
     setBookmarkedProblems((current) => bookmarked ? [...current, question] : current.filter((item) => item.id !== question.id))
   }
   function closeQuiz() { if (!submitting) { setQuizOpen(false); setSessionId(null); setProblems([]); setSummary(null) } }
+
+  function resetFlashcardState() {
+    setFlashCards([]); setFlashIndex(0); setFlashRevealed(false)
+    setFlashKnown(new Set()); setFlashUnknown(new Set()); setFlashDone(false); setFlashError('')
+  }
+
+  function openFlashcards(projectId = '') {
+    setFlashProject(projectId); setFlashSession(''); setFlashBookmarkedOnly(false)
+    resetFlashcardState(); setFlashOpen(true)
+  }
+
+  function openBookmarkedFlashcards() {
+    setFlashProject(''); setFlashSession(''); setFlashBookmarkedOnly(true)
+    resetFlashcardState(); setFlashOpen(true)
+  }
+
+  function closeFlashcards() { setFlashOpen(false); resetFlashcardState() }
+
+  useEffect(() => {
+    if (!flashOpen || flashCards.length) return
+    const token = studentSession.get(); if (!token) return
+    api.listQuizScopes(token, flashProject || undefined).then((data) => setFlashScopes(data.courses)).catch(() => setFlashScopes([]))
+  }, [flashOpen, flashCards.length, flashProject])
+
+  async function startFlashcards() {
+    const token = studentSession.get(); if (!token) return navigate('/login')
+    setFlashLoading(true); setFlashError('')
+    try {
+      const data = await api.listFlashcardProblems(token, {
+        projectId: flashProject || undefined,
+        refSession: flashSession || undefined,
+        bookmarkedOnly: flashBookmarkedOnly,
+      })
+      if (!data.problems.length) { setFlashError('선택한 범위에 학습할 문제가 없습니다.'); return }
+      setFlashCards(data.problems); setFlashIndex(0); setFlashRevealed(false)
+      setFlashKnown(new Set()); setFlashUnknown(new Set()); setFlashDone(false)
+    } catch { setFlashError('문제를 불러오지 못했습니다.') }
+    finally { setFlashLoading(false) }
+  }
+
+  function markFlashcard(known: boolean) {
+    const card = flashCards[flashIndex]
+    if (known) setFlashKnown((current) => new Set(current).add(card.id))
+    else setFlashUnknown((current) => new Set(current).add(card.id))
+    if (flashIndex < flashCards.length - 1) { setFlashIndex((value) => value + 1); setFlashRevealed(false) }
+    else setFlashDone(true)
+  }
+
+  function restartUnknownFlashcards() {
+    const unknownCards = flashCards.filter((card) => flashUnknown.has(card.id)).sort(() => Math.random() - 0.5)
+    setFlashCards(unknownCards); setFlashIndex(0); setFlashRevealed(false)
+    setFlashKnown(new Set()); setFlashUnknown(new Set()); setFlashDone(false)
+  }
+
+  async function bookmarkUnknownFlashcards() {
+    const token = studentSession.get(); if (!token) return
+    await Promise.all([...flashUnknown].map((problemId) => api.toggleProblemBookmark(token, problemId, true)))
+    const { problems: rows } = await api.listBookmarkedProblems(token)
+    setBookmarkedProblems(rows); setBookmarkedIds(new Set(rows.map((row) => row.id)))
+  }
 
   useEffect(() => {
     if (!quizOpen || sessionId) return
@@ -198,7 +272,7 @@ function StudentHomePage() {
     {error && !quizOpen && <div className="notice error" role="alert">{error}</div>}
     <section className="dashboard-grid">
       <article className="study-hero">
-        <div className="hero-copy"><p className="eyebrow">오늘의 학습</p><h2>{activeSession ? '풀던 문제를\n이어서 볼까요?' : history.length ? '오늘은 어떤 문제를\n복습해 볼까요?' : '첫 번째 학습을\n시작해 볼까요?'}</h2><p className="recommend">{activeSession ? `${activeSession.problems.length}문제 중 ${activeSession.resumeIndex + 1}번째` : <>추천 10문제 <span>·</span> 예상 12분</>}</p>{activeSession ? <div style={{ display: 'flex', gap: 10 }}><button className="primary-button" onClick={resumeQuiz}>이어서 풀기 <Icon name="arrow" /></button><button className="secondary-button" onClick={() => openQuiz()}>새로 시작</button></div> : <button className="primary-button" onClick={() => openQuiz()}>오늘의 학습 시작 <Icon name="arrow" /></button>}</div>
+        <div className="hero-copy"><p className="eyebrow">오늘의 학습</p><h2>{activeSession ? '풀던 문제를\n이어서 볼까요?' : history.length ? '오늘은 어떤 문제를\n복습해 볼까요?' : '첫 번째 학습을\n시작해 볼까요?'}</h2><p className="recommend">{activeSession ? `${activeSession.problems.length}문제 중 ${activeSession.resumeIndex + 1}번째` : <>추천 10문제 <span>·</span> 예상 12분</>}</p>{activeSession ? <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><button className="primary-button" onClick={resumeQuiz}>이어서 풀기 <Icon name="arrow" /></button><button className="secondary-button" onClick={() => openQuiz()}>새로 시작</button><button className="secondary-button" onClick={() => openFlashcards()}>플래시카드로 복습</button></div> : <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}><button className="primary-button" onClick={() => openQuiz()}>오늘의 학습 시작 <Icon name="arrow" /></button><button className="secondary-button" onClick={() => openFlashcards()}>플래시카드로 복습</button></div>}</div>
         <div className="study-visual" aria-hidden="true"><div className="desk-card back-two"/><div className="desk-card back-one"/><div className="desk-card front"><span/><i/><i/><i/></div><div className="book-base"><span/></div></div>
       </article>
       <article className="weekly-card">
@@ -216,7 +290,7 @@ function StudentHomePage() {
       </article>)}</div> : <div className="empty-card"><strong>아직 개설된 과목이 없습니다.</strong><p>관리자가 과목을 개설하면 이곳에 표시됩니다.</p><Link className="text-link" to="/projects">과목 목록 보기 →</Link></div>}
     </section>
 
-    {bookmarkedProblems.length > 0 && <section className="recent-section"><div className="section-heading"><h2>북마크한 문제</h2><button className="text-link" onClick={openBookmarkedQuiz}>복습 퀴즈 시작</button></div><div className="project-grid">{bookmarkedProblems.slice(0, 3).map((problem) => <article className="project-card" key={problem.id}><div className="project-card-copy"><h3>{problem.question}</h3><p>{problem.ref_course ?? '문제'} {problem.ref_session ?? ''}</p></div></article>)}</div></section>}
+    {bookmarkedProblems.length > 0 && <section className="recent-section"><div className="section-heading"><h2>북마크한 문제</h2><div style={{ display: 'flex', gap: 14 }}><button className="text-link" onClick={openBookmarkedQuiz}>복습 퀴즈 시작</button><button className="text-link" onClick={openBookmarkedFlashcards}>플래시카드로 복습</button></div></div><div className="project-grid">{bookmarkedProblems.slice(0, 3).map((problem) => <article className="project-card" key={problem.id}><div className="project-card-copy"><h3>{problem.question}</h3><p>{problem.ref_course ?? '문제'} {problem.ref_session ?? ''}</p></div></article>)}</div></section>}
     <section className="quick-card"><div><p className="eyebrow">문제 만들기</p><h2>배운 내용을 직접 문제로 남겨보세요.</h2><p>객관식·단답형·성경문제를 만들고 동료들과 공유할 수 있어요.</p></div><Link className="secondary-button" to="/problems/new"><Icon name="plus"/> 새 문제 만들기</Link></section>
   </main>
 
@@ -254,6 +328,26 @@ function StudentHomePage() {
         </div>}
       </div>}
       {result === null ? <button className="primary-button wide" disabled={!answer.trim() || submitting} onClick={submitAnswer}>답안 확인 <Icon name="arrow"/></button> : <button className="primary-button wide" disabled={submitting} onClick={nextQuestion}>{questionIndex === problems.length - 1 ? '결과 보기' : '다음 문제'} <Icon name="arrow"/></button>}
+    </div>}
+  </section></div>}
+
+  {flashOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && closeFlashcards()}><section className="quiz-modal" role="dialog" aria-modal="true" aria-labelledby="flash-title"><button className="modal-close" aria-label="닫기" onClick={closeFlashcards}>×</button>
+    {!flashCards.length ? <div className="quiz-setup"><p className="eyebrow">플래시카드</p><h2 id="flash-title">가볍게 훑어볼까요?</h2><p>채점 없이 문제를 넘겨보며 아는지 모르는지만 표시하는 학습 모드예요.</p>
+      {flashError && <div className="notice error">{flashError}</div>}
+      <label>학습 범위<select value={flashProject} onChange={(event) => { setFlashProject(event.target.value); setFlashSession('') }}><option value="">전체 문제</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
+      {flashProject && (flashScopes[0]?.sessions.length ?? 0) > 0 && <label>회차<select value={flashSession} onChange={(event) => setFlashSession(event.target.value)}><option value="">전체 회차</option>{[...flashScopes[0].sessions].sort((a, b) => Number(a) - Number(b)).map((session) => <option key={session} value={session}>{session}강</option>)}</select></label>}
+      <button className="primary-button wide" disabled={flashLoading} onClick={startFlashcards}>{flashLoading ? '카드를 준비하는 중…' : '플래시카드 시작'} {!flashLoading && <Icon name="arrow" />}</button>
+    </div> : flashDone ? <div className="quiz-result"><p className="eyebrow">학습 완료</p><h2 id="flash-title">전체 {flashCards.length}장 중 {flashKnown.size}장을 알고 계셨어요</h2><p>모르는 문제 {flashUnknown.size}장은 북마크에 담아 나중에 다시 볼 수 있어요.</p>
+      <div className="result-actions">
+        {flashUnknown.size > 0 && <button className="secondary-button" onClick={restartUnknownFlashcards}>모르는 문제만 다시보기</button>}
+        {flashUnknown.size > 0 && <button className="secondary-button" onClick={bookmarkUnknownFlashcards}>모르는 문제 북마크</button>}
+        <button className="primary-button" onClick={closeFlashcards}>학습 마치기</button>
+      </div>
+    </div> : <div className="quiz-body"><div className="quiz-top"><div><p className="eyebrow">{flashCards[flashIndex].ref_course || '문제은행'} {flashCards[flashIndex].ref_session ? `${flashCards[flashIndex].ref_session}강` : ''}</p><span>{flashIndex + 1} / {flashCards.length}</span></div><div className="quiz-progress"><span style={{ width: `${(flashIndex + 1) / flashCards.length * 100}%` }} /></div></div>
+      <div className="flashcard-face"><h2>{flashCards[flashIndex].question}</h2>
+        {flashRevealed && <div className="flashcard-reveal"><strong>{flashCards[flashIndex].options ? (flashCards[flashIndex].options![flashCards[flashIndex].answer] ?? flashCards[flashIndex].answer) : flashCards[flashIndex].answer}</strong><span>정답</span></div>}
+      </div>
+      {!flashRevealed ? <button className="primary-button wide" onClick={() => setFlashRevealed(true)}>정답 보기 <Icon name="arrow" /></button> : <div className="flashcard-choices"><button type="button" className="unknown" onClick={() => markFlashcard(false)}>몰랐어요</button><button type="button" className="know" onClick={() => markFlashcard(true)}>알고 있었어요</button></div>}
     </div>}
   </section></div>}
   </StudentShell>
