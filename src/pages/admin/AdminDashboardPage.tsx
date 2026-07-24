@@ -81,6 +81,10 @@ function AdminDashboardPage() {
   const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({})
   const [auditLog, setAuditLog] = useState<Array<{ id: number; action: string; createdAt: string; actorName: string; targetName: string }>>([])
 
+  const [cohortSectionOpen, setCohortSectionOpen] = useState(true)
+  const [studentSectionOpen, setStudentSectionOpen] = useState(true)
+  const [auditSectionOpen, setAuditSectionOpen] = useState(true)
+
   const [problemAuditOpen, setProblemAuditOpen] = useState(false)
   const [problemAuditLoaded, setProblemAuditLoaded] = useState(false)
   const [problemAuditLoading, setProblemAuditLoading] = useState(false)
@@ -427,71 +431,93 @@ function AdminDashboardPage() {
         )}
 
         <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
-          <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">기수 등록</h2>
-          {cohortError && <p className="mb-3 text-sm text-red-500">{cohortError}</p>}
-          <form onSubmit={handleCreateCohort} className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <input className={inputClass} placeholder="기수명" value={cohortName} onChange={(e) => setCohortName(e.target.value)} required />
-            <input className={inputClass} placeholder="간사 이름" value={staffName} onChange={(e) => setStaffName(e.target.value)} required />
-            <input className={inputClass} placeholder="반장 이름" value={leaderName} onChange={(e) => setLeaderName(e.target.value)} required />
-            <input className={inputClass} placeholder="킹제임스 성경(영어) 출판연도 (예: 1611)" value={kjvYear} onChange={(e) => setKjvYear(e.target.value)} required />
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">기수 등록</h2>
             <button
-              type="submit"
-              className="rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark sm:col-span-2"
+              type="button"
+              onClick={() => setCohortSectionOpen((value) => !value)}
+              className="whitespace-nowrap rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
             >
-              기수 추가
+              {cohortSectionOpen ? '접기' : '펼치기'}
             </button>
-          </form>
+          </div>
+          {cohortSectionOpen && (
+            <>
+              {cohortError && <p className="mb-3 text-sm text-red-500">{cohortError}</p>}
+              <form onSubmit={handleCreateCohort} className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <input className={inputClass} placeholder="기수명" value={cohortName} onChange={(e) => setCohortName(e.target.value)} required />
+                <input className={inputClass} placeholder="간사 이름" value={staffName} onChange={(e) => setStaffName(e.target.value)} required />
+                <input className={inputClass} placeholder="반장 이름" value={leaderName} onChange={(e) => setLeaderName(e.target.value)} required />
+                <input className={inputClass} placeholder="킹제임스 성경(영어) 출판연도 (예: 1611)" value={kjvYear} onChange={(e) => setKjvYear(e.target.value)} required />
+                <button
+                  type="submit"
+                  className="rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark sm:col-span-2"
+                >
+                  기수 추가
+                </button>
+              </form>
 
-          <ul className="flex flex-col gap-2">
-            {cohorts.map((cohort) =>
-              editingCohortId === cohort.id ? (
-                <li key={cohort.id} className="rounded-lg border border-accent p-3">
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                    <input className={inputClass} placeholder="기수명" value={editCohortName} onChange={(e) => setEditCohortName(e.target.value)} />
-                    <input className={inputClass} placeholder="간사 이름" value={editCohortStaffName} onChange={(e) => setEditCohortStaffName(e.target.value)} />
-                    <input className={inputClass} placeholder="반장 이름" value={editCohortLeaderName} onChange={(e) => setEditCohortLeaderName(e.target.value)} />
-                    <input className={inputClass} placeholder="출판연도" value={editCohortKjvYear} onChange={(e) => setEditCohortKjvYear(e.target.value)} />
-                  </div>
-                  <div className="mt-2 flex gap-3 text-sm">
-                    <button type="button" onClick={() => handleSaveCohort(cohort.id)} className="text-accent hover:underline">
-                      저장
-                    </button>
-                    <button type="button" onClick={() => setEditingCohortId(null)} className="text-neutral-400 hover:underline">
-                      취소
-                    </button>
-                  </div>
-                </li>
-              ) : (
-                <li key={cohort.id} className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedCohortId(cohort.id)}
-                    className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${
-                      selectedCohortId === cohort.id
-                        ? 'border-accent bg-accent/10 text-accent-dark'
-                        : 'border-neutral-200 dark:border-neutral-800'
-                    }`}
-                  >
-                    {cohort.name} · 간사 {cohort.staff_name} · 반장 {cohort.leader_name} · {cohort.kjv_year}년판
-                  </button>
-                  <div className="flex gap-3">
-                    <button type="button" onClick={() => startEditCohort(cohort)} className="whitespace-nowrap text-sm text-accent hover:underline">
-                      수정
-                    </button>
-                    <button type="button" onClick={() => handleDeleteCohort(cohort.id)} className="whitespace-nowrap text-sm text-red-500 hover:underline">
-                      삭제
-                    </button>
-                  </div>
-                </li>
-              ),
-            )}
-            {cohorts.length === 0 && <p className="text-sm text-neutral-400">등록된 기수가 없습니다.</p>}
-          </ul>
+              <ul className="flex flex-col gap-2">
+                {cohorts.map((cohort) =>
+                  editingCohortId === cohort.id ? (
+                    <li key={cohort.id} className="rounded-lg border border-accent p-3">
+                      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                        <input className={inputClass} placeholder="기수명" value={editCohortName} onChange={(e) => setEditCohortName(e.target.value)} />
+                        <input className={inputClass} placeholder="간사 이름" value={editCohortStaffName} onChange={(e) => setEditCohortStaffName(e.target.value)} />
+                        <input className={inputClass} placeholder="반장 이름" value={editCohortLeaderName} onChange={(e) => setEditCohortLeaderName(e.target.value)} />
+                        <input className={inputClass} placeholder="출판연도" value={editCohortKjvYear} onChange={(e) => setEditCohortKjvYear(e.target.value)} />
+                      </div>
+                      <div className="mt-2 flex gap-3 text-sm">
+                        <button type="button" onClick={() => handleSaveCohort(cohort.id)} className="text-accent hover:underline">
+                          저장
+                        </button>
+                        <button type="button" onClick={() => setEditingCohortId(null)} className="text-neutral-400 hover:underline">
+                          취소
+                        </button>
+                      </div>
+                    </li>
+                  ) : (
+                    <li key={cohort.id} className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCohortId(cohort.id)}
+                        className={`flex-1 rounded-lg border px-3 py-2 text-left text-sm transition ${
+                          selectedCohortId === cohort.id
+                            ? 'border-accent bg-accent/10 text-accent-dark'
+                            : 'border-neutral-200 dark:border-neutral-800'
+                        }`}
+                      >
+                        {cohort.name} · 간사 {cohort.staff_name} · 반장 {cohort.leader_name} · {cohort.kjv_year}년판
+                      </button>
+                      <div className="flex gap-3">
+                        <button type="button" onClick={() => startEditCohort(cohort)} className="whitespace-nowrap text-sm text-accent hover:underline">
+                          수정
+                        </button>
+                        <button type="button" onClick={() => handleDeleteCohort(cohort.id)} className="whitespace-nowrap text-sm text-red-500 hover:underline">
+                          삭제
+                        </button>
+                      </div>
+                    </li>
+                  ),
+                )}
+                {cohorts.length === 0 && <p className="text-sm text-neutral-400">등록된 기수가 없습니다.</p>}
+              </ul>
+            </>
+          )}
         </section>
 
         <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
-          <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">신학원생 등록</h2>
-          {!selectedCohortId ? (
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">신학원생 등록</h2>
+            <button
+              type="button"
+              onClick={() => setStudentSectionOpen((value) => !value)}
+              className="whitespace-nowrap rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
+            >
+              {studentSectionOpen ? '접기' : '펼치기'}
+            </button>
+          </div>
+          {studentSectionOpen && (!selectedCohortId ? (
             <p className="text-sm text-neutral-400">먼저 기수를 등록하고 선택해주세요.</p>
           ) : (
             <>
@@ -677,7 +703,7 @@ function AdminDashboardPage() {
                 </div>
               )}
             </>
-          )}
+          ))}
         </section>
 
         <SubjectManagementPanel actor={{ adminToken: token }} />
@@ -725,18 +751,29 @@ function AdminDashboardPage() {
         </section>
 
         <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
-          <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">개인정보 접근 이력</h2>
-          <ul className="flex flex-col gap-2 text-sm">
-            {auditLog.map((entry) => (
-              <li key={entry.id} className="flex flex-col gap-1 border-b border-neutral-100 pb-2 dark:border-neutral-900 sm:flex-row sm:justify-between sm:gap-3">
-                <span>
-                  <strong>{entry.actorName}</strong>이(가) <strong>{entry.targetName}</strong>의 전화번호를 조회함
-                </span>
-                <span className="whitespace-nowrap text-neutral-400">{new Date(entry.createdAt).toLocaleString('ko-KR')}</span>
-              </li>
-            ))}
-            {auditLog.length === 0 && <p className="text-neutral-400">접근 이력이 없습니다.</p>}
-          </ul>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">개인정보 접근 이력</h2>
+            <button
+              type="button"
+              onClick={() => setAuditSectionOpen((value) => !value)}
+              className="whitespace-nowrap rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
+            >
+              {auditSectionOpen ? '접기' : '펼치기'}
+            </button>
+          </div>
+          {auditSectionOpen && (
+            <ul className="flex flex-col gap-2 text-sm">
+              {auditLog.map((entry) => (
+                <li key={entry.id} className="flex flex-col gap-1 border-b border-neutral-100 pb-2 dark:border-neutral-900 sm:flex-row sm:justify-between sm:gap-3">
+                  <span>
+                    <strong>{entry.actorName}</strong>이(가) <strong>{entry.targetName}</strong>의 전화번호를 조회함
+                  </span>
+                  <span className="whitespace-nowrap text-neutral-400">{new Date(entry.createdAt).toLocaleString('ko-KR')}</span>
+                </li>
+              ))}
+              {auditLog.length === 0 && <p className="text-neutral-400">접근 이력이 없습니다.</p>}
+            </ul>
+          )}
         </section>
       </div>
     </div>

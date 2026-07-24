@@ -49,6 +49,9 @@ function ManagePage() {
   const [studentSearch, setStudentSearch] = useState('')
   const [studentPage, setStudentPage] = useState(1)
 
+  const [cohortSectionOpen, setCohortSectionOpen] = useState(true)
+  const [studentSectionOpen, setStudentSectionOpen] = useState(true)
+
   useEffect(() => {
     const user = studentSession.getUser()
     if (!token || !user?.isAdmin) {
@@ -177,20 +180,36 @@ function ManagePage() {
         </div>
 
         <section className="management-card">
-          <h2>기수 선택</h2>
-          <select className="field" value={selectedCohortId} onChange={(e) => setSelectedCohortId(e.target.value)}>
-            {cohorts.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
-          {cohorts.length === 0 && <p className="notice">등록된 기수가 없습니다.</p>}
+          <div className="management-card-head">
+            <h2>기수 선택</h2>
+            <button type="button" className="text-link" onClick={() => setCohortSectionOpen((value) => !value)}>
+              {cohortSectionOpen ? '접기' : '펼치기'}
+            </button>
+          </div>
+          {cohortSectionOpen && (
+            <>
+              <select className="field" value={selectedCohortId} onChange={(e) => setSelectedCohortId(e.target.value)}>
+                {cohorts.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+              {cohorts.length === 0 && <p className="notice">등록된 기수가 없습니다.</p>}
+            </>
+          )}
         </section>
 
         {selectedCohortId && (
           <section className="management-card">
-            <h2>신학원생 등록</h2>
+            <div className="management-card-head">
+              <h2>신학원생 등록</h2>
+              <button type="button" className="text-link" onClick={() => setStudentSectionOpen((value) => !value)}>
+                {studentSectionOpen ? '접기' : '펼치기'}
+              </button>
+            </div>
+            {studentSectionOpen && (
+            <>
             {studentError && <div className="notice error">{studentError}</div>}
             <form onSubmit={handleCreateStudent} className="inline-actions" style={{ marginBottom: 16 }}>
               <input className="field" placeholder="이름" value={studentName} onChange={(e) => setStudentName(e.target.value)} required />
@@ -298,6 +317,8 @@ function ManagePage() {
                   다음
                 </button>
               </div>
+            )}
+            </>
             )}
           </section>
         )}

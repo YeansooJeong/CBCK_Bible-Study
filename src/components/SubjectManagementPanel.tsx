@@ -6,6 +6,7 @@ const inputClass =
 
 // Super/일반 Admin 공용 과목(커리큘럼 프로젝트) 관리 패널.
 export default function SubjectManagementPanel({ actor }: { actor: { adminToken?: string; userToken?: string } }) {
+  const [open, setOpen] = useState(true)
   const [projects, setProjects] = useState<Project[]>([])
   const [title, setTitle] = useState('')
   const [sessionCount, setSessionCount] = useState('32')
@@ -73,63 +74,76 @@ export default function SubjectManagementPanel({ actor }: { actor: { adminToken?
 
   return (
     <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
-      <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">과목 관리</h2>
-      {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
-      <form onSubmit={handleCreate} className="mb-6 flex gap-3">
-        <input className={inputClass} placeholder="과목명 (예: 창세기)" value={title} onChange={(e) => setTitle(e.target.value)} required />
-        <input
-          className={inputClass + ' max-w-[140px]'}
-          type="number"
-          min={1}
-          placeholder="총 회차 수"
-          value={sessionCount}
-          onChange={(e) => setSessionCount(e.target.value)}
-        />
-        <button type="submit" className="whitespace-nowrap rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark">
-          과목 추가
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">과목 관리</h2>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="whitespace-nowrap rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
+        >
+          {open ? '접기' : '펼치기'}
         </button>
-      </form>
-      <ul className="flex flex-col gap-2 text-sm">
-        {projects.map((p) =>
-          editingId === p.id ? (
-            <li key={p.id} className="rounded-lg border border-accent p-3">
-              <div className="flex gap-2">
-                <input className={inputClass} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-                <input
-                  className={inputClass + ' max-w-[140px]'}
-                  type="number"
-                  min={1}
-                  value={editSessionCount}
-                  onChange={(e) => setEditSessionCount(e.target.value)}
-                />
-              </div>
-              <div className="mt-2 flex gap-3">
-                <button type="button" onClick={() => saveEdit(p)} className="text-accent hover:underline">
-                  저장
-                </button>
-                <button type="button" onClick={() => setEditingId(null)} className="text-neutral-400 hover:underline">
-                  취소
-                </button>
-              </div>
-            </li>
-          ) : (
-            <li key={p.id} className="flex items-center justify-between border-b border-neutral-100 pb-2 dark:border-neutral-900">
-              <span className="text-neutral-900 dark:text-neutral-50">
-                {p.title} <span className="text-neutral-400">· 총 {p.session_count}강</span>
-              </span>
-              <div className="flex gap-3">
-                <button type="button" onClick={() => startEdit(p)} className="text-accent hover:underline">
-                  수정
-                </button>
-                <button type="button" onClick={() => handleDelete(p.id)} className="text-red-500 hover:underline">
-                  삭제
-                </button>
-              </div>
-            </li>
-          ),
-        )}
-        {projects.length === 0 && <p className="text-neutral-400">개설된 과목이 없습니다.</p>}
-      </ul>
+      </div>
+      {open && (
+        <>
+          {error && <p className="mb-3 text-sm text-red-500">{error}</p>}
+          <form onSubmit={handleCreate} className="mb-6 flex gap-3">
+            <input className={inputClass} placeholder="과목명 (예: 창세기)" value={title} onChange={(e) => setTitle(e.target.value)} required />
+            <input
+              className={inputClass + ' max-w-[140px]'}
+              type="number"
+              min={1}
+              placeholder="총 회차 수"
+              value={sessionCount}
+              onChange={(e) => setSessionCount(e.target.value)}
+            />
+            <button type="submit" className="whitespace-nowrap rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark">
+              과목 추가
+            </button>
+          </form>
+          <ul className="flex flex-col gap-2 text-sm">
+            {projects.map((p) =>
+              editingId === p.id ? (
+                <li key={p.id} className="rounded-lg border border-accent p-3">
+                  <div className="flex gap-2">
+                    <input className={inputClass} value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+                    <input
+                      className={inputClass + ' max-w-[140px]'}
+                      type="number"
+                      min={1}
+                      value={editSessionCount}
+                      onChange={(e) => setEditSessionCount(e.target.value)}
+                    />
+                  </div>
+                  <div className="mt-2 flex gap-3">
+                    <button type="button" onClick={() => saveEdit(p)} className="text-accent hover:underline">
+                      저장
+                    </button>
+                    <button type="button" onClick={() => setEditingId(null)} className="text-neutral-400 hover:underline">
+                      취소
+                    </button>
+                  </div>
+                </li>
+              ) : (
+                <li key={p.id} className="flex items-center justify-between border-b border-neutral-100 pb-2 dark:border-neutral-900">
+                  <span className="text-neutral-900 dark:text-neutral-50">
+                    {p.title} <span className="text-neutral-400">· 총 {p.session_count}강</span>
+                  </span>
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => startEdit(p)} className="text-accent hover:underline">
+                      수정
+                    </button>
+                    <button type="button" onClick={() => handleDelete(p.id)} className="text-red-500 hover:underline">
+                      삭제
+                    </button>
+                  </div>
+                </li>
+              ),
+            )}
+            {projects.length === 0 && <p className="text-neutral-400">개설된 과목이 없습니다.</p>}
+          </ul>
+        </>
+      )}
     </section>
   )
 }
