@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import StudentShell, { Icon } from '../components/StudentShell'
-import { api, type ProblemShareScope, type ProblemType, type Project, type RefKind } from '../lib/api'
+import { api, type Problem, type ProblemShareScope, type ProblemType, type Project, type RefKind } from '../lib/api'
 import { studentSession } from '../lib/session'
 
 const DRAFT_KEY = 'cbck-problem-draft'
@@ -26,9 +26,36 @@ function readDraft(): Draft {
   catch { return emptyDraft }
 }
 
+function problemToDraft(p: Problem): Draft {
+  const base: Draft = {
+    ...emptyDraft,
+    type: p.type,
+    question: p.question,
+    projectId: p.project_id,
+    session: p.ref_session ?? '',
+    refKind: (p.ref_kind ?? '') as RefKind | '',
+    refDetail: p.ref_detail ?? '',
+    share: p.share_scope,
+  }
+  if (p.type === 'mcq') {
+    const options = ['1', '2', '3', '4'].map((k) => p.options?.[k] ?? '')
+    const correctIndex = Math.max(0, Number(p.answer) - 1)
+    return { ...base, options, correctIndex }
+  }
+  if (p.type === 'short') {
+    return { ...base, shortAnswer: p.answer, keywords: p.keywords ?? '' }
+  }
+  const match = p.answer.match(/^(.*)\s+(\d+):(\d+)$/)
+  return { ...base, book: match?.[1] ?? p.answer, chapter: match?.[2] ?? '', verse: match?.[3] ?? '' }
+}
+
 export default function NewProblemPage() {
   const navigate = useNavigate()
-  const [draft, setDraft] = useState<Draft>(readDraft)
+  const { problemId } = useParams<{ problemId?: string }>()
+  const location = useLocation()
+  const editingProblem = problemId ? (location.state as { problem?: Problem } | null)?.problem : undefined
+  const isEditing = Boolean(problemId)
+  const [draft, setDraft] = useState<Draft>(() => (editingProblem ? problemToDraft(editingProblem) : readDraft()))
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -43,12 +70,37 @@ export default function NewProblemPage() {
     if (!token) { navigate('/login'); return }
     api.listProjects({ userToken: token }).then(({ projects }) => {
       setProjects(projects)
-      setDraft((current) => ({ ...current, projectId: projects.some((item) => item.id === current.projectId) ? current.projectId : (projects[0]?.id || '') }))
+      if (!isEditing) {
+        setDraft((current) => ({ ...current, projectId: projects.some((item) => item.id === current.projectId) ? current.projectId : (projects[0]?.id || '') }))
+      }
     }).catch(() => setError('과목을 불러오지 못했습니다.')).finally(() => setLoading(false))
     api.listShareableUsers(token).then(({ users }) => setShareUsers(users)).catch(() => setShareUsers([]))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate])
 
   const selectedProject = useMemo(() => projects.find((project) => project.id === draft.projectId) ?? null, [projects, draft.projectId])
+
+  const answerLabel = useMemo(() => {
+    if (draft.type === 'mcq') return draft.options[draft.correctIndex] || `${draft.correctIndex + 1}번 보기가 정답으로 지정됨`
+    if (draft.type === 'short') return draft.shortAnswer || '정답을 입력하면 여기에 표시됩니다.'
+    return [draft.book, draft.chapter && `${draft.chapter}장`, draft.verse && `${draft.verse}절`].filter(Boolean).join(' ') || '성경책·장·절을 입력해 주세요.'
+  }, [draft])
+
+  if (problemId && !editingProblem) {
+    return (
+      <StudentShell>
+        <main className="create-shell">
+          <div className="empty-card create-empty">
+            <strong>수정할 문제를 찾을 수 없습니다.</strong>
+            <p>과목 화면의 문제 목록에서 다시 눌러 들어와 주세요.</p>
+            <Link className="primary-button" to="/projects">
+              <Icon name="book" /> 과목 목록 보기
+            </Link>
+          </div>
+        </main>
+      </StudentShell>
+    )
+  }
 
   function toggleSharedUser(userId: string) {
     setDraft((current) => ({
@@ -58,12 +110,6 @@ export default function NewProblemPage() {
         : [...current.sharedUserIds, userId],
     }))
   }
-
-  const answerLabel = useMemo(() => {
-    if (draft.type === 'mcq') return draft.options[draft.correctIndex] || `${draft.correctIndex + 1}번 보기가 정답으로 지정됨`
-    if (draft.type === 'short') return draft.shortAnswer || '정답을 입력하면 여기에 표시됩니다.'
-    return [draft.book, draft.chapter && `${draft.chapter}장`, draft.verse && `${draft.verse}절`].filter(Boolean).join(' ') || '성경책·장·절을 입력해 주세요.'
-  }, [draft])
 
   function update<K extends keyof Draft>(key: K, value: Draft[K]) { setDraft((current) => ({ ...current, [key]: value })); setSavedProjectId(''); setError('') }
   function updateOption(index: number, value: string) { const options = [...draft.options]; options[index] = value; update('options', options) }
@@ -88,15 +134,21 @@ export default function NewProblemPage() {
     event.preventDefault(); const message = validate(); if (message) { setError(message); return }
     const token = studentSession.get(); if (!token) return navigate('/login')
     setSaving(true); setError('')
+    const fields = {
+      type: draft.type, question: draft.question.trim(),
+      options: draft.type === 'mcq' ? Object.fromEntries(draft.options.map((value, index) => [String(index + 1), value.trim()])) : undefined,
+      answer: draft.type === 'mcq' ? String(draft.correctIndex + 1) : draft.type === 'short' ? draft.shortAnswer.trim() : `${draft.book.trim()} ${draft.chapter}:${draft.verse}`,
+      keywords: draft.type === 'short' ? draft.keywords.trim() || undefined : undefined,
+      refSession: draft.session, refKind: draft.refKind || undefined, refDetail: draft.refDetail.trim() || undefined, shareScope: draft.share,
+      sharedUserIds: draft.share === 'selected' ? draft.sharedUserIds : undefined,
+    }
     try {
-      await api.createProblem(token, {
-        projectId: draft.projectId, type: draft.type, question: draft.question.trim(),
-        options: draft.type === 'mcq' ? Object.fromEntries(draft.options.map((value, index) => [String(index + 1), value.trim()])) : undefined,
-        answer: draft.type === 'mcq' ? String(draft.correctIndex + 1) : draft.type === 'short' ? draft.shortAnswer.trim() : `${draft.book.trim()} ${draft.chapter}:${draft.verse}`,
-        keywords: draft.type === 'short' ? draft.keywords.trim() || undefined : undefined,
-        refSession: draft.session, refKind: draft.refKind || undefined, refDetail: draft.refDetail.trim() || undefined, shareScope: draft.share,
-        sharedUserIds: draft.share === 'selected' ? draft.sharedUserIds : undefined,
-      })
+      if (isEditing && editingProblem) {
+        await api.updateProblem(token, { problemId: editingProblem.id, ...fields })
+        navigate(`/projects/${draft.projectId}`)
+        return
+      }
+      await api.createProblem(token, { projectId: draft.projectId, ...fields })
       localStorage.removeItem(DRAFT_KEY); setSavedProjectId(draft.projectId); setNotice('문제가 과목에 저장되었습니다.')
     } catch { setError('문제 저장에 실패했습니다. 잠시 후 다시 시도해 주세요.') }
     finally { setSaving(false) }
@@ -105,7 +157,7 @@ export default function NewProblemPage() {
   function resetForNext() { setDraft((current) => ({ ...emptyDraft, projectId: current.projectId, session: current.session, refKind: current.refKind, share: current.share })); setSavedProjectId(''); setNotice('') }
 
   return <StudentShell><main className="create-shell">
-    <div className="create-heading"><div><Link to="/home">← 홈으로</Link><p className="eyebrow">새 문제 만들기</p><h1>배운 내용을 한 문제로 남겨보세요.</h1><p>정답뿐 아니라 다시 찾아볼 수 있는 레퍼런스까지 함께 기록합니다.</p></div><Link className="csv-button" to={draft.projectId ? `/projects/${draft.projectId}` : '/projects'}><Icon name="upload" size={17}/> CSV로 여러 문제 등록</Link></div>
+    <div className="create-heading"><div><Link to={isEditing ? `/projects/${draft.projectId}` : '/home'}>← {isEditing ? '과목으로' : '홈으로'}</Link><p className="eyebrow">{isEditing ? '문제 수정' : '새 문제 만들기'}</p><h1>{isEditing ? '등록한 문제를 고쳐보세요.' : '배운 내용을 한 문제로 남겨보세요.'}</h1><p>정답뿐 아니라 다시 찾아볼 수 있는 레퍼런스까지 함께 기록합니다.</p></div>{!isEditing && <Link className="csv-button" to={draft.projectId ? `/projects/${draft.projectId}` : '/projects'}><Icon name="upload" size={17}/> CSV로 여러 문제 등록</Link>}</div>
 
     {!loading && projects.length === 0 ? <div className="empty-card create-empty"><strong>아직 개설된 과목이 없습니다.</strong><p>관리자가 과목을 개설하면 문제를 등록할 수 있어요.</p><Link className="primary-button" to="/projects"><Icon name="book"/> 과목 목록 보기</Link></div> : <div className="creator-grid">
       <form className="editor-card" onSubmit={handleSubmit}>
@@ -123,7 +175,7 @@ export default function NewProblemPage() {
           <label className="creator-field full">세부 내용 <span>선택</span><input value={draft.refDetail} onChange={(e) => update('refDetail', e.target.value)} placeholder="예: 초반부, 12분경"/></label>
         </div></section>
 
-        <section className="creator-section"><div className="creator-title"><span>04</span><div><h2>저장과 공유</h2><p>문제를 담을 과목과 공개 범위를 정하세요.</p></div></div><label className="creator-field">저장할 과목 <b>필수</b><select value={draft.projectId} onChange={(e) => update('projectId', e.target.value)}><option value="">과목 선택</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.title}</option>)}</select></label><div className="share-options">{([{key:'private',title:'나만 보기',desc:'작성자만 조회·수정할 수 있어요.'},{key:'all',title:'전체 신학원생',desc:'등록된 모든 신학원생이 풀 수 있어요.'},{key:'selected',title:'선택한 신학원생',desc:'고른 신학원생만 조회·풀이할 수 있어요.'}] as const).map((item) => <button type="button" key={item.key} className={draft.share === item.key ? 'selected' : ''} onClick={() => update('share', item.key)}><span>{draft.share === item.key ? '●' : '○'}</span><div><strong>{item.title}</strong><small>{item.desc}</small></div></button>)}</div>
+        <section className="creator-section"><div className="creator-title"><span>04</span><div><h2>저장과 공유</h2><p>문제를 담을 과목과 공개 범위를 정하세요.</p></div></div><label className="creator-field">저장할 과목 <b>필수</b><select value={draft.projectId} disabled={isEditing} onChange={(e) => update('projectId', e.target.value)}><option value="">과목 선택</option>{projects.map((project) => <option value={project.id} key={project.id}>{project.title}</option>)}</select>{isEditing && <small>등록된 과목은 수정 화면에서 바꿀 수 없어요.</small>}</label><div className="share-options">{([{key:'private',title:'나만 보기',desc:'작성자만 조회·수정할 수 있어요.'},{key:'all',title:'전체 신학원생',desc:'등록된 모든 신학원생이 풀 수 있어요.'},{key:'selected',title:'선택한 신학원생',desc:'고른 신학원생만 조회·풀이할 수 있어요.'}] as const).map((item) => <button type="button" key={item.key} className={draft.share === item.key ? 'selected' : ''} onClick={() => update('share', item.key)}><span>{draft.share === item.key ? '●' : '○'}</span><div><strong>{item.title}</strong><small>{item.desc}</small></div></button>)}</div>
           {draft.share === 'selected' && <div className="creator-field plain">
             공유할 신학원생 <b>필수</b>
             <input value={shareSearch} onChange={(e) => setShareSearch(e.target.value)} placeholder="이름으로 검색" style={{ marginTop: 8, marginBottom: 8 }} />
@@ -141,7 +193,7 @@ export default function NewProblemPage() {
 
         {error && <div className="creator-error" role="alert">! {error}</div>}
         {savedProjectId && <div className="creator-success"><strong>문제가 저장되었습니다.</strong><div><button type="button" onClick={resetForNext}>계속 등록</button><Link to={`/projects/${savedProjectId}`}>과목에서 확인 →</Link></div></div>}
-        <div className="creator-actions"><button type="button" className="draft-button" onClick={saveDraft}>임시저장</button><button type="submit" className="primary-button" disabled={saving || loading}>{saving ? '저장 중…' : '문제 저장'} {!saving && <Icon name="arrow"/>}</button></div>
+        <div className="creator-actions">{!isEditing && <button type="button" className="draft-button" onClick={saveDraft}>임시저장</button>}<button type="submit" className="primary-button" disabled={saving || loading}>{saving ? '저장 중…' : isEditing ? '수정 저장' : '문제 저장'} {!saving && <Icon name="arrow"/>}</button></div>
       </form>
 
       <aside className="preview-column"><div className="preview-label"><span>실시간 미리보기</span><small>학습자에게 보이는 화면</small></div><article className="problem-preview"><span className="preview-bookmark"/><div className="preview-meta"><span>{typeInfo[draft.type].badge}</span><span>{selectedProject?.title || '과목'} · {draft.session ? `${draft.session}강` : '회차'}</span></div><h2>{draft.question || '입력한 문제가 이곳에 표시됩니다.'}</h2>{draft.type === 'mcq' ? <div className="preview-options">{draft.options.map((item,index) => <div key={index} className={draft.correctIndex === index && item ? 'answer' : ''}><span>{index+1}</span>{item || `${index+1}번 보기`}</div>)}</div> : <div className="preview-answer"><small>정답</small><strong>{answerLabel}</strong>{draft.type === 'short' && draft.keywords && <p>인정 키워드 · {draft.keywords}</p>}</div>}<div className="preview-reference"><small>학습 레퍼런스</small><strong>{selectedProject?.title || '과목'} · {draft.session ? `${draft.session}강` : '회차'}</strong><p>{[draft.refKind, draft.refDetail].filter(Boolean).join(' · ') || '정답을 다시 확인할 출처'}</p></div></article><div className="policy-note"><strong>공유 설정 안내</strong><p>{draft.share === 'private' ? '저장 후에도 이 문제는 나만 볼 수 있습니다.' : draft.share === 'all' ? '저장하면 전체 신학원생에게 공유됩니다.' : `저장하면 선택한 ${draft.sharedUserIds.length}명에게만 공유됩니다.`}</p><span>문제 단위 설정이 과목 설정보다 우선합니다.</span></div></aside>

@@ -18,6 +18,7 @@ function App() {
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/projects/:projectId" element={<ProjectDetailPage />} />
         <Route path="/problems/new" element={<NewProblemPage />} />
+        <Route path="/problems/:problemId/edit" element={<NewProblemPage />} />
         <Route path="/manage" element={<ManagePage />} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/admin" element={<AdminDashboardPage />} />

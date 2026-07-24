@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { api, type Problem, type ProblemShareScope, type Project } from '../lib/api'
 import { studentSession } from '../lib/session'
@@ -118,6 +118,11 @@ function ProjectDetailPage() {
   const [problemSharePickerId, setProblemSharePickerId] = useState<string | null>(null)
   const [problemShareIds, setProblemShareIds] = useState<string[]>([])
 
+  const [problemQuery, setProblemQuery] = useState('')
+  const [problemTypeFilter, setProblemTypeFilter] = useState<Problem['type'] | 'all'>('all')
+  const [problemSessionFilter, setProblemSessionFilter] = useState('')
+  const [problemSort, setProblemSort] = useState<'latest' | 'oldest' | 'session'>('latest')
+
   async function reload(t: string, pid: string) {
     const [{ projects }, { problems }] = await Promise.all([api.listProjects({ userToken: t }), api.listProblems(t, pid)])
     setProject(projects.find((p) => p.id === pid) ?? null)
@@ -170,6 +175,33 @@ function ProjectDetailPage() {
     await api.deleteProblem(token, problemId)
     reload(token, projectId)
   }
+
+  function openProblemEditor(problem: Problem) {
+    if (problem.author_id !== userId) return
+    navigate(`/problems/${problem.id}/edit`, { state: { problem } })
+  }
+
+  const availableSessions = useMemo(
+    () => [...new Set(problems.map((p) => p.ref_session).filter((value): value is string => Boolean(value)))].sort((a, b) => Number(a) - Number(b)),
+    [problems],
+  )
+
+  const visibleProblems = useMemo(() => {
+    const normalizedQuery = problemQuery.trim().toLocaleLowerCase()
+    const filtered = problems.filter((p) => {
+      const searchable = `${p.question} ${p.answer}`.toLocaleLowerCase()
+      return (
+        (!normalizedQuery || searchable.includes(normalizedQuery)) &&
+        (problemTypeFilter === 'all' || p.type === problemTypeFilter) &&
+        (!problemSessionFilter || p.ref_session === problemSessionFilter)
+      )
+    })
+    const sorted = [...filtered]
+    if (problemSort === 'latest') sorted.sort((a, b) => b.created_at.localeCompare(a.created_at))
+    else if (problemSort === 'oldest') sorted.sort((a, b) => a.created_at.localeCompare(b.created_at))
+    else sorted.sort((a, b) => Number(a.ref_session ?? 0) - Number(b.ref_session ?? 0))
+    return sorted
+  }, [problems, problemQuery, problemTypeFilter, problemSessionFilter, problemSort])
 
   if (!token) return null
   if (!project) {
@@ -239,8 +271,36 @@ function ProjectDetailPage() {
           </div>
         </section>
 
-        <section><div className="section-heading"><h2>내가 등록한 문제</h2><span>{problems.length}문제</span></div><ul className="problem-list">
-          {problems.map((problem) => (
+        <section><div className="section-heading"><h2>내가 등록한 문제</h2><span>{visibleProblems.length}/{problems.length}문제</span></div>
+          <div className="problem-filters">
+            <input
+              className="field"
+              placeholder="문제·정답 검색"
+              value={problemQuery}
+              onChange={(e) => setProblemQuery(e.target.value)}
+            />
+            <select className="field" value={problemTypeFilter} onChange={(e) => setProblemTypeFilter(e.target.value as Problem['type'] | 'all')}>
+              <option value="all">전체 유형</option>
+              <option value="mcq">4지선다</option>
+              <option value="short">단답형</option>
+              <option value="bible">성경문제</option>
+            </select>
+            <select className="field" value={problemSessionFilter} onChange={(e) => setProblemSessionFilter(e.target.value)}>
+              <option value="">전체 회차</option>
+              {availableSessions.map((session) => (
+                <option key={session} value={session}>
+                  {session}강
+                </option>
+              ))}
+            </select>
+            <select className="field" value={problemSort} onChange={(e) => setProblemSort(e.target.value as 'latest' | 'oldest' | 'session')}>
+              <option value="latest">최신순</option>
+              <option value="oldest">오래된순</option>
+              <option value="session">회차순</option>
+            </select>
+          </div>
+          <ul className="problem-list">
+          {visibleProblems.map((problem) => (
             <li key={problem.id} className="problem-item">
               <div className="problem-meta">
                 <span>
@@ -268,7 +328,13 @@ function ProjectDetailPage() {
                   </div>
                 )}
               </div>
-              <p>{problem.question}</p>
+              {problem.author_id === userId ? (
+                <button type="button" className="problem-question-edit" onClick={() => openProblemEditor(problem)}>
+                  {problem.question}
+                </button>
+              ) : (
+                <p>{problem.question}</p>
+              )}
               <p className="problem-answer">정답: {problem.type === 'bible' ? formatBibleAnswer(problem.answer) : problem.answer}</p>
               {problem.author_id === userId && problemSharePickerId === problem.id && (
                 <div style={{ marginTop: 10, borderTop: '1px solid var(--line)', paddingTop: 10 }}>
