@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Icon } from '../components/StudentShell'
 import { HelpButton } from '../components/HelpModal'
@@ -38,6 +38,13 @@ function errorMessage(code: string): string {
 
 function StudentAuthPage() {
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (studentSession.get() && studentSession.getUser()) {
+      navigate('/home', { replace: true })
+    }
+  }, [navigate])
+
   const [step, setStep] = useState<Step>('phone')
   const [phone, setPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
