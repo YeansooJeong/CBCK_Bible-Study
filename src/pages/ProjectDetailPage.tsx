@@ -118,6 +118,7 @@ function ProjectDetailPage() {
   const [problemSharePickerId, setProblemSharePickerId] = useState<string | null>(null)
   const [problemShareIds, setProblemShareIds] = useState<string[]>([])
 
+  const [problemActionError, setProblemActionError] = useState<string | null>(null)
   const [problemQuery, setProblemQuery] = useState('')
   const [problemTypeFilter, setProblemTypeFilter] = useState<Problem['type'] | 'all'>('all')
   const [problemSessionFilter, setProblemSessionFilter] = useState('')
@@ -155,15 +156,25 @@ function ProjectDetailPage() {
       return
     }
     if (problemSharePickerId === problemId) setProblemSharePickerId(null)
-    await api.updateProblem(token, { problemId, shareScope: scope })
-    reload(token, projectId)
+    setProblemActionError(null)
+    try {
+      await api.updateProblem(token, { problemId, shareScope: scope })
+      await reload(token, projectId)
+    } catch {
+      setProblemActionError('공개 범위 변경에 실패했습니다. 잠시 후 다시 시도해주세요.')
+    }
   }
 
   async function applyProblemShare(problemId: string) {
     if (!token || !projectId) return
-    await api.updateProblem(token, { problemId, shareScope: 'selected', sharedUserIds: problemShareIds })
-    setProblemSharePickerId(null)
-    reload(token, projectId)
+    setProblemActionError(null)
+    try {
+      await api.updateProblem(token, { problemId, shareScope: 'selected', sharedUserIds: problemShareIds })
+      setProblemSharePickerId(null)
+      await reload(token, projectId)
+    } catch {
+      setProblemActionError('공유 설정에 실패했습니다. 잠시 후 다시 시도해주세요.')
+    }
   }
 
   function toggleShareId(ids: string[], setIds: (ids: string[]) => void, userId: string) {
@@ -172,8 +183,14 @@ function ProjectDetailPage() {
 
   async function handleDeleteProblem(problemId: string) {
     if (!token || !projectId) return
-    await api.deleteProblem(token, problemId)
-    reload(token, projectId)
+    if (!window.confirm('이 문제를 삭제할까요?')) return
+    setProblemActionError(null)
+    try {
+      await api.deleteProblem(token, problemId)
+      await reload(token, projectId)
+    } catch {
+      setProblemActionError('문제 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.')
+    }
   }
 
   function openProblemEditor(problem: Problem) {
@@ -272,6 +289,7 @@ function ProjectDetailPage() {
         </section>
 
         <section><div className="section-heading"><h2>내가 등록한 문제</h2><span>{visibleProblems.length}/{problems.length}문제</span></div>
+          {problemActionError && <div className="notice error">{problemActionError}</div>}
           <div className="problem-filters">
             <input
               className="field"
