@@ -49,7 +49,8 @@ const sections: Array<{ title: string; body: string[] }> = [
   {
     title: '북마크(즐겨찾기)',
     body: [
-      '기억하고 싶은 문제는 별표를 눌러 북마크할 수 있어요.',
+      '문제 풀이와 플래시카드 화면 오른쪽 위에 있는 별표(★) 버튼을 누르면 그 문제를 북마크할 수 있어요. 다시 누르면 해제됩니다.',
+      '플래시카드에서는 다 끝난 뒤 "모르는 문제"만 한 번에 북마크할 수도 있어요.',
       '홈 화면의 "북마크한 문제"에서 언제든 다시 찾아볼 수 있습니다.',
     ],
   },
@@ -66,15 +67,29 @@ const sections: Array<{ title: string; body: string[] }> = [
   },
 ]
 
+const HELP_DISMISSED_KEY = 'cbck_help_dismissed'
+
 export function HelpButton() {
-  const [open, setOpen] = useState(false)
+  const [open, setOpen] = useState(() => localStorage.getItem(HELP_DISMISSED_KEY) !== 'true')
+  const [dontShowAgain, setDontShowAgain] = useState(false)
+
+  function openHelp() {
+    setDontShowAgain(false)
+    setOpen(true)
+  }
+
+  function close() {
+    if (dontShowAgain) localStorage.setItem(HELP_DISMISSED_KEY, 'true')
+    setOpen(false)
+  }
+
   return (
     <>
-      <button type="button" className="help-trigger" onClick={() => setOpen(true)} aria-label="도움말 보기">?</button>
+      <button type="button" className="help-trigger" onClick={openHelp} aria-label="도움말 보기">?</button>
       {open && (
-        <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && setOpen(false)}>
+        <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && close()}>
           <section className="quiz-modal help-modal" role="dialog" aria-modal="true" aria-labelledby="help-title">
-            <button type="button" className="modal-close" aria-label="닫기" onClick={() => setOpen(false)}>×</button>
+            <button type="button" className="modal-close" aria-label="닫기" onClick={close}>×</button>
             <h2 id="help-title">이용 안내</h2>
             <div className="help-body">
               {sections.map((section) => (
@@ -86,6 +101,10 @@ export function HelpButton() {
                 </div>
               ))}
             </div>
+            <label className="help-dismiss">
+              <input type="checkbox" checked={dontShowAgain} onChange={(event) => setDontShowAgain(event.target.checked)} />
+              다시 보지 않기
+            </label>
           </section>
         </div>
       )}
