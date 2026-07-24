@@ -6,6 +6,7 @@ import { parseCsvLine, downloadCsv } from '../lib/csv'
 import StudentShell from '../components/StudentShell'
 import ProblemModerationPanel from '../components/ProblemModerationPanel'
 import SubjectManagementPanel from '../components/SubjectManagementPanel'
+import { ManageAdminHelpButton } from '../components/AdminHelpModal'
 
 // 1행: 헤더(name,phone), 2행부터 실제 신학원생 데이터
 const STUDENT_SAMPLE_CSV = 'name,phone\n"홍길동","01012345678"\n"김철수","01098765432"\n'
@@ -172,6 +173,7 @@ function ManagePage() {
           <div>
             <h1>신학원생/문제 관리</h1>
           </div>
+          <ManageAdminHelpButton />
         </div>
 
         <section className="management-card">

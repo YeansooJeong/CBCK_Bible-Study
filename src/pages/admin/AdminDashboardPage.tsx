@@ -5,6 +5,7 @@ import { adminSession } from '../../lib/session'
 import { parseCsvLine, downloadCsv } from '../../lib/csv'
 import ProblemModerationPanel from '../../components/ProblemModerationPanel'
 import SubjectManagementPanel from '../../components/SubjectManagementPanel'
+import { SuperAdminHelpButton } from '../../components/AdminHelpModal'
 
 const inputClass =
   'w-full rounded-lg border border-neutral-300 px-3 py-2 text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
@@ -321,20 +322,21 @@ function AdminDashboardPage() {
   return (
     <div className="min-h-svh bg-white px-6 py-10 dark:bg-neutral-950">
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">관리자 대시보드</h1>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <SuperAdminHelpButton />
             <button
               type="button"
               onClick={() => setPasswordFormOpen((value) => !value)}
-              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
+              className="whitespace-nowrap rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
             >
               비밀번호 변경
             </button>
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
+              className="whitespace-nowrap rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
             >
               로그아웃
             </button>
@@ -387,14 +389,14 @@ function AdminDashboardPage() {
         <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
           <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">기수 등록</h2>
           {cohortError && <p className="mb-3 text-sm text-red-500">{cohortError}</p>}
-          <form onSubmit={handleCreateCohort} className="mb-6 grid grid-cols-2 gap-3">
+          <form onSubmit={handleCreateCohort} className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <input className={inputClass} placeholder="기수명" value={cohortName} onChange={(e) => setCohortName(e.target.value)} required />
             <input className={inputClass} placeholder="간사 이름" value={staffName} onChange={(e) => setStaffName(e.target.value)} required />
             <input className={inputClass} placeholder="반장 이름" value={leaderName} onChange={(e) => setLeaderName(e.target.value)} required />
             <input className={inputClass} placeholder="킹제임스 성경(영어) 출판연도 (예: 1611)" value={kjvYear} onChange={(e) => setKjvYear(e.target.value)} required />
             <button
               type="submit"
-              className="col-span-2 rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark"
+              className="rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark sm:col-span-2"
             >
               기수 추가
             </button>
@@ -404,7 +406,7 @@ function AdminDashboardPage() {
             {cohorts.map((cohort) =>
               editingCohortId === cohort.id ? (
                 <li key={cohort.id} className="rounded-lg border border-accent p-3">
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <input className={inputClass} placeholder="기수명" value={editCohortName} onChange={(e) => setEditCohortName(e.target.value)} />
                     <input className={inputClass} placeholder="간사 이름" value={editCohortStaffName} onChange={(e) => setEditCohortStaffName(e.target.value)} />
                     <input className={inputClass} placeholder="반장 이름" value={editCohortLeaderName} onChange={(e) => setEditCohortLeaderName(e.target.value)} />
@@ -420,7 +422,7 @@ function AdminDashboardPage() {
                   </div>
                 </li>
               ) : (
-                <li key={cohort.id} className="flex items-center gap-2">
+                <li key={cohort.id} className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   <button
                     type="button"
                     onClick={() => setSelectedCohortId(cohort.id)}
@@ -432,12 +434,14 @@ function AdminDashboardPage() {
                   >
                     {cohort.name} · 간사 {cohort.staff_name} · 반장 {cohort.leader_name} · {cohort.kjv_year}년판
                   </button>
-                  <button type="button" onClick={() => startEditCohort(cohort)} className="whitespace-nowrap text-sm text-accent hover:underline">
-                    수정
-                  </button>
-                  <button type="button" onClick={() => handleDeleteCohort(cohort.id)} className="whitespace-nowrap text-sm text-red-500 hover:underline">
-                    삭제
-                  </button>
+                  <div className="flex gap-3">
+                    <button type="button" onClick={() => startEditCohort(cohort)} className="whitespace-nowrap text-sm text-accent hover:underline">
+                      수정
+                    </button>
+                    <button type="button" onClick={() => handleDeleteCohort(cohort.id)} className="whitespace-nowrap text-sm text-red-500 hover:underline">
+                      삭제
+                    </button>
+                  </div>
                 </li>
               ),
             )}
@@ -452,7 +456,7 @@ function AdminDashboardPage() {
           ) : (
             <>
               {studentError && <p className="mb-3 text-sm text-red-500">{studentError}</p>}
-              <form onSubmit={handleCreateStudent} className="mb-6 flex gap-3">
+              <form onSubmit={handleCreateStudent} className="mb-6 flex flex-col gap-3 sm:flex-row">
                 <input className={inputClass} placeholder="이름" value={studentName} onChange={(e) => setStudentName(e.target.value)} required />
                 <input className={inputClass} placeholder="전화번호" value={studentPhone} onChange={(e) => setStudentPhone(e.target.value)} required />
                 <button
@@ -644,11 +648,11 @@ function AdminDashboardPage() {
           <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">개인정보 접근 이력</h2>
           <ul className="flex flex-col gap-2 text-sm">
             {auditLog.map((entry) => (
-              <li key={entry.id} className="flex justify-between border-b border-neutral-100 pb-2 dark:border-neutral-900">
+              <li key={entry.id} className="flex flex-col gap-1 border-b border-neutral-100 pb-2 dark:border-neutral-900 sm:flex-row sm:justify-between sm:gap-3">
                 <span>
                   <strong>{entry.actorName}</strong>이(가) <strong>{entry.targetName}</strong>의 전화번호를 조회함
                 </span>
-                <span className="text-neutral-400">{new Date(entry.createdAt).toLocaleString('ko-KR')}</span>
+                <span className="whitespace-nowrap text-neutral-400">{new Date(entry.createdAt).toLocaleString('ko-KR')}</span>
               </li>
             ))}
             {auditLog.length === 0 && <p className="text-neutral-400">접근 이력이 없습니다.</p>}
