@@ -62,6 +62,14 @@ function AdminDashboardPage() {
   const [studentSearch, setStudentSearch] = useState('')
   const [studentPage, setStudentPage] = useState(1)
 
+  const [passwordFormOpen, setPasswordFormOpen] = useState(false)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [passwordSaving, setPasswordSaving] = useState(false)
+  const [passwordError, setPasswordError] = useState<string | null>(null)
+  const [passwordMessage, setPasswordMessage] = useState<string | null>(null)
+
   const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({})
   const [auditLog, setAuditLog] = useState<Array<{ id: number; action: string; createdAt: string; actorName: string; targetName: string }>>([])
 
@@ -221,6 +229,37 @@ function AdminDashboardPage() {
     navigate('/admin/login')
   }
 
+  async function handleChangePassword(e: FormEvent) {
+    e.preventDefault()
+    if (!token) return
+    setPasswordError(null)
+    setPasswordMessage(null)
+    if (newPassword.length < 8) {
+      setPasswordError('새 비밀번호는 8자 이상이어야 합니다.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('새 비밀번호 확인이 일치하지 않습니다.')
+      return
+    }
+    setPasswordSaving(true)
+    try {
+      await api.adminChangePassword(token, { currentPassword, newPassword })
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setPasswordMessage('비밀번호가 변경되었습니다.')
+    } catch (err) {
+      setPasswordError(
+        err instanceof ApiError && err.message === 'invalid_current_password'
+          ? '현재 비밀번호가 올바르지 않습니다.'
+          : '비밀번호 변경에 실패했습니다.',
+      )
+    } finally {
+      setPasswordSaving(false)
+    }
+  }
+
   function startEditStudent(student: Student) {
     setEditingStudentId(student.id)
     setEditName(student.name)
@@ -284,14 +323,66 @@ function AdminDashboardPage() {
       <div className="mx-auto flex max-w-3xl flex-col gap-8">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-50">관리자 대시보드</h1>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
-          >
-            로그아웃
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setPasswordFormOpen((value) => !value)}
+              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
+            >
+              비밀번호 변경
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
+            >
+              로그아웃
+            </button>
+          </div>
         </div>
+
+        {passwordFormOpen && (
+          <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+            <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">비밀번호 변경</h2>
+            {passwordError && <p className="mb-3 text-sm text-red-500">{passwordError}</p>}
+            {passwordMessage && <p className="mb-3 text-sm text-green-600">{passwordMessage}</p>}
+            <form onSubmit={handleChangePassword} className="grid gap-3 sm:grid-cols-3">
+              <input
+                type="password"
+                className={inputClass}
+                placeholder="현재 비밀번호"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+              <input
+                type="password"
+                className={inputClass}
+                placeholder="새 비밀번호 (8자 이상)"
+                minLength={8}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                required
+              />
+              <input
+                type="password"
+                className={inputClass}
+                placeholder="새 비밀번호 확인"
+                minLength={8}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                required
+              />
+              <button
+                type="submit"
+                disabled={passwordSaving}
+                className="sm:col-span-3 rounded-lg bg-accent px-4 py-2 font-medium text-white transition hover:bg-accent-dark"
+              >
+                {passwordSaving ? '변경하는 중…' : '비밀번호 변경'}
+              </button>
+            </form>
+          </section>
+        )}
 
         <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
           <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">기수 등록</h2>

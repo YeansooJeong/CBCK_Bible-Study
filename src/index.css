@@ -24,6 +24,15 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .student-topbar nav a.active { color:var(--forest); font-weight:700; }
 .student-topbar nav a.active:after { content:""; height:2px; background:var(--sage); position:absolute; bottom:0; left:0; right:0; }
 .student-profile { justify-self:end; display:flex; align-items:center; gap:10px; color:#53615a; font-size:14px; position:relative; }
+.help-trigger { width:32px; height:32px; border-radius:50%; border:1px solid var(--line); background:#fff; color:var(--forest); font-weight:700; font-size:15px; cursor:pointer; display:grid; place-items:center; flex:0 0 auto; }
+.help-trigger:hover { background:var(--sage-soft); }
+.help-modal h2 { font-size:24px; margin:0 0 18px; color:var(--forest); }
+.help-body { max-height:60vh; overflow-y:auto; padding-right:6px; }
+.help-section { margin-bottom:22px; }
+.help-section:last-child { margin-bottom:0; }
+.help-section h3 { font-size:17px; margin:0 0 8px; color:var(--forest); }
+.help-section p { font-size:15px; line-height:1.8; color:#374139; margin:0 0 8px; }
+.help-section p:last-child { margin-bottom:0; }
 .student-profile .avatar { width:36px; height:36px; border-radius:50%; background:linear-gradient(145deg,#789e85,#527662); color:white; display:grid; place-items:center; border:4px solid #eef1ed; font-size:13px; padding:0; cursor:pointer; }
 .student-profile .logout-desktop { border:0; border-left:1px solid var(--line); background:none; color:var(--muted); padding-left:12px; cursor:pointer; font-size:12px; }
 .profile-menu { position:absolute; top:calc(100% + 10px); right:0; background:#fff; border:1px solid var(--line); border-radius:12px; box-shadow:0 12px 30px rgba(36,72,58,.14); padding:12px 14px; display:flex; flex-direction:column; gap:8px; min-width:140px; z-index:40; }

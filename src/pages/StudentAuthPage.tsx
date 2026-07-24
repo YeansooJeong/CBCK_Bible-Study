@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Icon } from '../components/StudentShell'
+import { HelpButton } from '../components/HelpModal'
 import { api, ApiError } from '../lib/api'
 import { studentSession } from '../lib/session'
 import churchLogo from '../assets/church-logo.png'
@@ -23,7 +24,7 @@ function errorMessage(code: string): string {
     case 'name_mismatch':
       return '이름이 일치하지 않습니다.'
     case 'auth_question_mismatch':
-      return '간사 이름 / 반장 이름 / 킹제임스 성경(영어) 출판연도 중 일치하지 않는 항목이 있습니다.'
+      return '킹제임스 성경(영어) 출판연도가 일치하지 않습니다.'
     case 'weak_password':
       return '비밀번호는 8자 이상이어야 합니다.'
     case 'already_active':
@@ -46,8 +47,6 @@ function StudentAuthPage() {
   const [password, setPassword] = useState('')
 
   const [name, setName] = useState('')
-  const [staffName, setStaffName] = useState('')
-  const [leaderName, setLeaderName] = useState('')
   const [kjvYear, setKjvYear] = useState('')
   const [newPassword, setNewPassword] = useState('')
 
@@ -98,7 +97,7 @@ function StudentAuthPage() {
     setError(null)
     setLoading(true)
     try {
-      await api.activateAccount({ phone, name, staffName, leaderName, kjvYear, password: newPassword })
+      await api.activateAccount({ phone, name, kjvYear, password: newPassword })
       setPassword('')
       setStep('login')
       setNotice('계정이 활성화되었습니다. 비밀번호로 로그인해 주세요.')
@@ -208,14 +207,6 @@ function StudentAuthPage() {
                 <input id="name" className="field" value={name} onChange={(e) => setName(e.target.value)} required />
               </div>
               <div className="auth-field">
-                <label htmlFor="staff">간사 이름</label>
-                <input id="staff" className="field" value={staffName} onChange={(e) => setStaffName(e.target.value)} required />
-              </div>
-              <div className="auth-field">
-                <label htmlFor="leader">반장 이름</label>
-                <input id="leader" className="field" value={leaderName} onChange={(e) => setLeaderName(e.target.value)} required />
-              </div>
-              <div className="auth-field">
                 <label htmlFor="kjv">킹제임스 성경(영어) 출판연도</label>
                 <input
                   id="kjv"
@@ -249,7 +240,8 @@ function StudentAuthPage() {
             </form>
           )}
 
-          <div className="auth-meta" style={{ justifyContent: 'flex-end' }}>
+          <div className="auth-meta" style={{ justifyContent: 'space-between', alignItems: 'center' }}>
+            <HelpButton />
             <Link className="admin-link" to="/admin/login">
               관리자이신가요? 관리자 로그인 →
             </Link>

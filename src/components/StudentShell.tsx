@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { studentSession } from '../lib/session'
+import { HelpButton } from './HelpModal'
 import churchLogo from '../assets/church-logo.png'
 
 export function Icon({ name, size = 22 }: { name: 'book' | 'file' | 'users' | 'plus' | 'arrow' | 'upload'; size?: number }) {
@@ -36,6 +37,7 @@ export default function StudentShell({ children }: { children: ReactNode }) {
         {user?.isAdmin && <Link to="/manage" className={isManage ? 'active' : ''}>관리</Link>}
       </nav>
       <div className="student-profile">
+        <HelpButton />
         <button type="button" className="avatar" onClick={() => setProfileOpen((open) => !open)} aria-expanded={profileOpen} aria-haspopup="true">
           {user?.displayName?.slice(0, 1) || '학'}
         </button>

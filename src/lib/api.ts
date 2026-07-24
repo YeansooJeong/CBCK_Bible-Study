@@ -104,8 +104,6 @@ export const api = {
   activateAccount: (payload: {
     phone: string
     name: string
-    staffName: string
-    leaderName: string
     kjvYear: string
     password: string
   }) => callFunction<{ success: true }>('activate-account', { body: payload }),
@@ -117,6 +115,9 @@ export const api = {
 
   adminLogin: (loginId: string, password: string) =>
     callFunction<{ success: true; token: string }>('admin-login', { body: { loginId, password } }),
+
+  adminChangePassword: (adminToken: string, payload: { currentPassword: string; newPassword: string }) =>
+    callFunction<{ success: true }>('admin-change-password', { adminToken, body: payload }),
 
   adminListCohorts: (actor: { adminToken?: string; userToken?: string }) =>
     callFunction<{ cohorts: Cohort[] }>('admin-list-cohorts', { ...actor, method: 'GET' }),
