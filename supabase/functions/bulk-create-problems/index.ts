@@ -47,6 +47,21 @@ Deno.serve(async (req) => {
     })
     const { error } = await supabase.from('problems').insert(rows)
     if (error) throw error
+
+    try {
+      await supabase.from('problem_audit_log').insert({
+        problem_id: null,
+        actor_id: userId,
+        actor_role: 'student',
+        action: 'create',
+        question_snapshot: `CSV 일괄 생성 (${rows.length}개)`,
+        ref_course: project.title,
+        ref_session: null,
+      })
+    } catch (auditErr) {
+      console.error('problem_audit_log insert failed', auditErr)
+    }
+
     return json({ success: true, created: rows.length })
   } catch (err) {
     console.error(err)

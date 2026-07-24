@@ -10,6 +10,13 @@ import { SuperAdminHelpButton } from '../../components/AdminHelpModal'
 const inputClass =
   'w-full rounded-lg border border-neutral-300 px-3 py-2 text-neutral-900 outline-none focus:border-accent dark:border-neutral-700 dark:bg-neutral-900 dark:text-neutral-50'
 
+const problemActionLabel: Record<'create' | 'update' | 'delete', string> = { create: '생성', update: '수정', delete: '삭제' }
+const problemActorRoleLabel: Record<'admin' | 'general_admin' | 'student', string> = {
+  admin: 'Super Admin',
+  general_admin: '일반 Admin',
+  student: '작성자',
+}
+
 const STUDENTS_PER_PAGE = 10
 
 // 1행: 헤더(name,phone), 2행부터 실제 신학원생 데이터
@@ -73,6 +80,22 @@ function AdminDashboardPage() {
 
   const [revealedPhones, setRevealedPhones] = useState<Record<string, string>>({})
   const [auditLog, setAuditLog] = useState<Array<{ id: number; action: string; createdAt: string; actorName: string; targetName: string }>>([])
+
+  const [problemAuditOpen, setProblemAuditOpen] = useState(false)
+  const [problemAuditLoaded, setProblemAuditLoaded] = useState(false)
+  const [problemAuditLoading, setProblemAuditLoading] = useState(false)
+  const [problemAuditLog, setProblemAuditLog] = useState<
+    Array<{
+      id: number
+      action: 'create' | 'update' | 'delete'
+      createdAt: string
+      actorName: string
+      actorRole: 'admin' | 'general_admin' | 'student'
+      problemQuestion: string | null
+      refCourse: string | null
+      refSession: string | null
+    }>
+  >([])
 
   useEffect(() => {
     const t = adminSession.get()
@@ -228,6 +251,23 @@ function AdminDashboardPage() {
   function handleLogout() {
     adminSession.clear()
     navigate('/admin/login')
+  }
+
+  async function toggleProblemAudit() {
+    const next = !problemAuditOpen
+    setProblemAuditOpen(next)
+    if (next && !problemAuditLoaded && token) {
+      setProblemAuditLoading(true)
+      try {
+        const { entries } = await api.adminListProblemAuditLog(token)
+        setProblemAuditLog(entries)
+        setProblemAuditLoaded(true)
+      } catch {
+        setProblemAuditLog([])
+      } finally {
+        setProblemAuditLoading(false)
+      }
+    }
   }
 
   async function handleChangePassword(e: FormEvent) {
@@ -643,6 +683,46 @@ function AdminDashboardPage() {
         <SubjectManagementPanel actor={{ adminToken: token }} />
 
         <ProblemModerationPanel actor={{ adminToken: token }} />
+
+        <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-lg font-medium text-neutral-900 dark:text-neutral-50">문제 관리 이력</h2>
+            <button
+              type="button"
+              onClick={toggleProblemAudit}
+              className="whitespace-nowrap rounded-lg border border-neutral-300 px-3 py-1.5 text-sm dark:border-neutral-700"
+            >
+              {problemAuditOpen ? '접기' : '이력 보기'}
+            </button>
+          </div>
+          {problemAuditOpen && (
+            <ul className="mt-4 flex flex-col gap-2 text-sm">
+              {problemAuditLoading && <p className="text-neutral-400">불러오는 중…</p>}
+              {!problemAuditLoading &&
+                problemAuditLog.map((entry) => (
+                  <li
+                    key={entry.id}
+                    className="flex flex-col gap-1 border-b border-neutral-100 pb-2 dark:border-neutral-900 sm:flex-row sm:justify-between sm:gap-3"
+                  >
+                    <span>
+                      <strong>{entry.actorName}</strong>
+                      <span className="text-neutral-400"> ({problemActorRoleLabel[entry.actorRole]})</span>이(가){' '}
+                      <strong>{problemActionLabel[entry.action]}</strong>: {entry.problemQuestion ?? '(내용 없음)'}
+                      {entry.refCourse && (
+                        <span className="text-neutral-400">
+                          {' '}
+                          ({entry.refCourse}
+                          {entry.refSession ? ` · ${entry.refSession}강` : ''})
+                        </span>
+                      )}
+                    </span>
+                    <span className="whitespace-nowrap text-neutral-400">{new Date(entry.createdAt).toLocaleString('ko-KR')}</span>
+                  </li>
+                ))}
+              {!problemAuditLoading && problemAuditLog.length === 0 && <p className="text-neutral-400">이력이 없습니다.</p>}
+            </ul>
+          )}
+        </section>
 
         <section className="rounded-2xl border border-neutral-200 p-6 dark:border-neutral-800">
           <h2 className="mb-4 text-lg font-medium text-neutral-900 dark:text-neutral-50">개인정보 접근 이력</h2>

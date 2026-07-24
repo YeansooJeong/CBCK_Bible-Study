@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
       .from('problems')
       .update(updates)
       .eq('id', problemId)
-      .select('id')
+      .select('id, question, ref_course, ref_session')
       .maybeSingle()
     if (error) throw error
     if (!problem) {
@@ -72,6 +72,20 @@ Deno.serve(async (req) => {
         status: 404,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
+    }
+
+    try {
+      await supabase.from('problem_audit_log').insert({
+        problem_id: problemId,
+        actor_id: actor.actorId,
+        actor_role: actor.isSuperAdmin ? 'admin' : 'general_admin',
+        action: 'update',
+        question_snapshot: problem.question,
+        ref_course: problem.ref_course,
+        ref_session: problem.ref_session,
+      })
+    } catch (auditErr) {
+      console.error('problem_audit_log insert failed', auditErr)
     }
 
     return new Response(JSON.stringify({ success: true }), {

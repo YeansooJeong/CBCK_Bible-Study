@@ -196,6 +196,20 @@ export const api = {
       { adminToken, method: 'GET' },
     ),
 
+  adminListProblemAuditLog: (adminToken: string) =>
+    callFunction<{
+      entries: Array<{
+        id: number
+        action: 'create' | 'update' | 'delete'
+        createdAt: string
+        actorName: string
+        actorRole: 'admin' | 'general_admin' | 'student'
+        problemQuestion: string | null
+        refCourse: string | null
+        refSession: string | null
+      }>
+    }>('admin-list-problem-audit-log', { adminToken, method: 'GET' }),
+
   listProjects: (actor: { adminToken?: string; userToken?: string }) =>
     callFunction<{ projects: Project[] }>('list-projects', { ...actor, method: 'GET' }),
 

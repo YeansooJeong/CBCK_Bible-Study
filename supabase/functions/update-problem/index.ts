@@ -99,6 +99,25 @@ Deno.serve(async (req) => {
     if (Object.keys(updates).length > 0) {
       const { error: updateError } = await supabase.from('problems').update(updates).eq('id', problemId)
       if (updateError) throw updateError
+
+      try {
+        const { data: current } = await supabase
+          .from('problems')
+          .select('question, ref_course, ref_session')
+          .eq('id', problemId)
+          .maybeSingle()
+        await supabase.from('problem_audit_log').insert({
+          problem_id: problemId,
+          actor_id: userId,
+          actor_role: 'student',
+          action: 'update',
+          question_snapshot: current?.question ?? null,
+          ref_course: current?.ref_course ?? null,
+          ref_session: current?.ref_session ?? null,
+        })
+      } catch (auditErr) {
+        console.error('problem_audit_log insert failed', auditErr)
+      }
     }
 
     if (Array.isArray(sharedUserIds)) {

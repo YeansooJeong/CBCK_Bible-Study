@@ -28,8 +28,28 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
     )
 
+    const { data: problem } = await supabase
+      .from('problems')
+      .select('id, question, ref_course, ref_session')
+      .eq('id', problemId)
+      .maybeSingle()
+
     const { error } = await supabase.from('problems').delete().eq('id', problemId)
     if (error) throw error
+
+    try {
+      await supabase.from('problem_audit_log').insert({
+        problem_id: problemId,
+        actor_id: actor.actorId,
+        actor_role: actor.isSuperAdmin ? 'admin' : 'general_admin',
+        action: 'delete',
+        question_snapshot: problem?.question ?? null,
+        ref_course: problem?.ref_course ?? null,
+        ref_session: problem?.ref_session ?? null,
+      })
+    } catch (auditErr) {
+      console.error('problem_audit_log insert failed', auditErr)
+    }
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

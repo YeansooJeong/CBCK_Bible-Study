@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
 
     const { data: problem, error: fetchError } = await supabase
       .from('problems')
-      .select('id, author_id')
+      .select('id, author_id, question, ref_course, ref_session')
       .eq('id', problemId)
       .maybeSingle()
     if (fetchError) throw fetchError
@@ -42,6 +42,20 @@ Deno.serve(async (req) => {
 
     const { error: deleteError } = await supabase.from('problems').delete().eq('id', problemId)
     if (deleteError) throw deleteError
+
+    try {
+      await supabase.from('problem_audit_log').insert({
+        problem_id: problemId,
+        actor_id: userId,
+        actor_role: 'student',
+        action: 'delete',
+        question_snapshot: problem.question,
+        ref_course: problem.ref_course,
+        ref_session: problem.ref_session,
+      })
+    } catch (auditErr) {
+      console.error('problem_audit_log insert failed', auditErr)
+    }
 
     return new Response(JSON.stringify({ success: true }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

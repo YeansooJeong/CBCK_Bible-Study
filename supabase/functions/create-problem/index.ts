@@ -119,6 +119,20 @@ Deno.serve(async (req) => {
       if (shareError) throw shareError
     }
 
+    try {
+      await supabase.from('problem_audit_log').insert({
+        problem_id: problem.id,
+        actor_id: userId,
+        actor_role: 'student',
+        action: 'create',
+        question_snapshot: problem.question,
+        ref_course: problem.ref_course,
+        ref_session: problem.ref_session,
+      })
+    } catch (auditErr) {
+      console.error('problem_audit_log insert failed', auditErr)
+    }
+
     return new Response(JSON.stringify({ success: true, problem }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

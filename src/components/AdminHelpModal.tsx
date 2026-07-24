@@ -71,6 +71,13 @@ function getSections(variant: Variant): Array<{ title: string; body: string[] }>
 
   if (variant === 'super') {
     sections.push({
+      title: '문제 관리 이력은 어디서 보나요?',
+      body: [
+        '"문제 관리" 아래 "문제 관리 이력"에서 "이력 보기"를 누르면, 문제를 누가·언제 생성·수정·삭제했는지 목록으로 볼 수 있어요.',
+        '누가 문제를 풀고 맞았는지는 여기서 보이지 않아요. 이건 문제 자체가 만들어지고 바뀐 기록만 보여드립니다.',
+      ],
+    })
+    sections.push({
       title: '관리자 비밀번호는 어떻게 바꾸나요?',
       body: ['우측 상단 "비밀번호 변경" 버튼을 누르면 본인(super admin)의 로그인 비밀번호를 바꿀 수 있어요.'],
     })
