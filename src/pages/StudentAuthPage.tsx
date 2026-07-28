@@ -11,7 +11,7 @@ type Step = 'phone' | 'login' | 'activate' | 'not-registered'
 const stepMeta: Record<Step, { title: string; subtitle: string; dot: number }> = {
   phone: { title: '신학원생 로그인', subtitle: '등록된 휴대전화로 계정을 확인합니다.', dot: 0 },
   login: { title: '비밀번호 입력', subtitle: '안전한 학습 공간으로 이동합니다.', dot: 1 },
-  activate: { title: '계정 활성화', subtitle: '본인 확인 후 새 비밀번호를 설정합니다.', dot: 2 },
+  activate: { title: '계정 활성화', subtitle: '사용하실 비밀번호를 설정합니다.', dot: 2 },
   'not-registered': { title: '등록 안내', subtitle: '관리자에게 등록을 문의해 주세요.', dot: 0 },
 }
 
@@ -21,10 +21,6 @@ function errorMessage(code: string): string {
       return '전화번호 또는 비밀번호가 올바르지 않습니다.'
     case 'locked':
       return '5회 이상 로그인에 실패하여 계정이 잠겼습니다. 잠시 후 다시 시도해주세요.'
-    case 'name_mismatch':
-      return '이름이 일치하지 않습니다.'
-    case 'auth_question_mismatch':
-      return '킹제임스 성경(영어) 출판연도가 일치하지 않습니다.'
     case 'weak_password':
       return '비밀번호는 8자 이상이어야 합니다.'
     case 'already_active':
@@ -52,9 +48,6 @@ function StudentAuthPage() {
   const [loading, setLoading] = useState(false)
 
   const [password, setPassword] = useState('')
-
-  const [name, setName] = useState('')
-  const [kjvYear, setKjvYear] = useState('')
   const [newPassword, setNewPassword] = useState('')
 
   function goToStep(next: Step) {
@@ -104,7 +97,7 @@ function StudentAuthPage() {
     setError(null)
     setLoading(true)
     try {
-      await api.activateAccount({ phone, name, kjvYear, password: newPassword })
+      await api.activateAccount({ phone, password: newPassword })
       setPassword('')
       setStep('login')
       setNotice('계정이 활성화되었습니다. 비밀번호로 로그인해 주세요.')
@@ -208,23 +201,7 @@ function StudentAuthPage() {
 
           {step === 'activate' && (
             <form onSubmit={handleActivateSubmit}>
-              <div className="notice">첫 로그인입니다. 본인 확인 질문에 답하고 비밀번호를 설정해 주세요.</div>
-              <div className="auth-field">
-                <label htmlFor="name">이름</label>
-                <input id="name" className="field" value={name} onChange={(e) => setName(e.target.value)} required />
-              </div>
-              <div className="auth-field">
-                <label htmlFor="kjv">킹제임스 성경(영어) 출판연도</label>
-                <input
-                  id="kjv"
-                  className="field"
-                  inputMode="numeric"
-                  placeholder="해당 연도 숫자만 입력"
-                  value={kjvYear}
-                  onChange={(e) => setKjvYear(e.target.value)}
-                  required
-                />
-              </div>
+              <div className="notice">첫 로그인입니다. 앞으로 쓰실 비밀번호를 설정해 주세요.</div>
               <div className="auth-field">
                 <label htmlFor="newPassword">새 비밀번호</label>
                 <input

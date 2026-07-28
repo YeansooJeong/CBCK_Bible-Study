@@ -123,6 +123,8 @@ function ProjectDetailPage() {
   const [problemTypeFilter, setProblemTypeFilter] = useState<Problem['type'] | 'all'>('all')
   const [problemSessionFilter, setProblemSessionFilter] = useState('')
   const [problemSort, setProblemSort] = useState<'latest' | 'oldest' | 'session'>('latest')
+  const [selectedProblemIds, setSelectedProblemIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   async function reload(t: string, pid: string) {
     const [{ projects }, { problems }] = await Promise.all([api.listProjects({ userToken: t }), api.listProblems(t, pid)])
@@ -196,6 +198,38 @@ function ProjectDetailPage() {
   function openProblemEditor(problem: Problem) {
     if (problem.author_id !== userId) return
     navigate(`/problems/${problem.id}/edit`, { state: { problem } })
+  }
+
+  function toggleSelectedProblem(problemId: string) {
+    setSelectedProblemIds((current) => {
+      const next = new Set(current)
+      if (next.has(problemId)) next.delete(problemId)
+      else next.add(problemId)
+      return next
+    })
+  }
+
+  function toggleSelectAllOwn(ownIds: string[]) {
+    setSelectedProblemIds((current) => {
+      const allSelected = ownIds.length > 0 && ownIds.every((id) => current.has(id))
+      return allSelected ? new Set() : new Set(ownIds)
+    })
+  }
+
+  async function handleBulkDeleteOwn() {
+    if (!token || !projectId || selectedProblemIds.size === 0) return
+    if (!window.confirm(`선택한 ${selectedProblemIds.size}개 문제를 삭제할까요?`)) return
+    setBulkDeleting(true)
+    setProblemActionError(null)
+    try {
+      await Promise.all([...selectedProblemIds].map((id) => api.deleteProblem(token, id)))
+      setSelectedProblemIds(new Set())
+      await reload(token, projectId)
+    } catch {
+      setProblemActionError('일부 문제 삭제에 실패했습니다. 잠시 후 다시 시도해주세요.')
+    } finally {
+      setBulkDeleting(false)
+    }
   }
 
   const availableSessions = useMemo(
@@ -317,10 +351,35 @@ function ProjectDetailPage() {
               <option value="session">회차순</option>
             </select>
           </div>
+          {(() => {
+            const ownVisibleIds = visibleProblems.filter((p) => p.author_id === userId).map((p) => p.id)
+            return ownVisibleIds.length > 0 ? (
+              <div className="problem-bulk-bar">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={ownVisibleIds.every((id) => selectedProblemIds.has(id))}
+                    onChange={() => toggleSelectAllOwn(ownVisibleIds)}
+                  />
+                  내 문제 전체 선택 ({ownVisibleIds.length}개)
+                </label>
+                <button type="button" className="danger-button" disabled={selectedProblemIds.size === 0 || bulkDeleting} onClick={handleBulkDeleteOwn}>
+                  {bulkDeleting ? '삭제하는 중…' : `선택 삭제 (${selectedProblemIds.size})`}
+                </button>
+              </div>
+            ) : null
+          })()}
           <ul className="problem-list">
           {visibleProblems.map((problem) => (
             <li key={problem.id} className="problem-item">
               <div className="problem-meta">
+                {problem.author_id === userId && (
+                  <input
+                    type="checkbox"
+                    checked={selectedProblemIds.has(problem.id)}
+                    onChange={() => toggleSelectedProblem(problem.id)}
+                  />
+                )}
                 <span>
                   {typeLabel[problem.type]}
                   {problem.ref_session && ` · ${problem.ref_session}강`}

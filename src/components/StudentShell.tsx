@@ -46,6 +46,12 @@ export default function StudentShell({ children }: { children: ReactNode }) {
         {profileOpen && (
           <div className="profile-menu">
             <span>{user?.displayName || '학습자'}님</span>
+            <div className="profile-menu-nav">
+              <Link to="/home" className={isHome ? 'active' : ''} onClick={() => setProfileOpen(false)}>홈</Link>
+              <Link to="/home" state={{ openStudy: true }} onClick={() => setProfileOpen(false)}>학습하기</Link>
+              <Link to="/projects" className={isProjects ? 'active' : ''} onClick={() => setProfileOpen(false)}>과목</Link>
+              {user?.isAdmin && <Link to="/manage" className={isManage ? 'active' : ''} onClick={() => setProfileOpen(false)}>관리</Link>}
+            </div>
             <button type="button" onClick={logout}>로그아웃</button>
           </div>
         )}

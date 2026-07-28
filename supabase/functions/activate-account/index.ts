@@ -3,20 +3,12 @@ import bcrypt from 'npm:bcryptjs@2'
 import { corsHeaders } from '../_shared/cors.ts'
 import { checkRateLimit, clientIp } from '../_shared/rateLimit.ts'
 
-// 연도류: "1611", "1611년", "1611년도" 등 숫자만 뽑아 핵심 숫자가 포함되는지 확인
-function fuzzyYearMatch(input: string, stored: string): boolean {
-  const digitsIn = input.replace(/\D+/g, '')
-  const digitsStored = stored.replace(/\D+/g, '')
-  if (!digitsStored) return false
-  return digitsIn.includes(digitsStored)
-}
-
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
-    const { phone, name, kjvYear, password } = await req.json()
-    if (!phone || !name || !kjvYear || !password) {
+    const { phone, password } = await req.json()
+    if (!phone || !password) {
       return new Response(JSON.stringify({ error: 'missing_fields' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -50,7 +42,7 @@ Deno.serve(async (req) => {
 
     const { data: user, error: userError } = await supabase
       .from('users')
-      .select('id, name, status, cohort_id, cohorts(kjv_year)')
+      .select('id, status')
       .eq('phone_hash', phoneHash)
       .maybeSingle()
     if (userError) throw userError
@@ -63,20 +55,6 @@ Deno.serve(async (req) => {
     }
     if (user.status !== 'pending') {
       return new Response(JSON.stringify({ error: 'already_active' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-    if (user.name !== name) {
-      return new Response(JSON.stringify({ error: 'name_mismatch' }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
-    }
-
-    const cohort = Array.isArray(user.cohorts) ? user.cohorts[0] : user.cohorts
-    if (!cohort || !fuzzyYearMatch(kjvYear, cohort.kjv_year)) {
-      return new Response(JSON.stringify({ error: 'auth_question_mismatch' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })

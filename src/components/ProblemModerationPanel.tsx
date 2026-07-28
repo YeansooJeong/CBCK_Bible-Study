@@ -19,6 +19,8 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
   const [query, setQuery] = useState('')
   const [typeFilter, setTypeFilter] = useState<ProblemType | 'all'>('all')
   const [courseFilter, setCourseFilter] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   async function load() {
     try {
@@ -79,6 +81,38 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
     setExpandedIds((current) => current.size === problems.length ? new Set() : new Set(problems.map((p) => p.id)))
   }
 
+  function toggleSelected(problemId: string) {
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(problemId)) next.delete(problemId)
+      else next.add(problemId)
+      return next
+    })
+  }
+
+  function toggleSelectAllFiltered() {
+    setSelectedIds((current) => {
+      const allSelected = filteredProblems.length > 0 && filteredProblems.every((p) => current.has(p.id))
+      return allSelected ? new Set() : new Set(filteredProblems.map((p) => p.id))
+    })
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`선택한 ${selectedIds.size}개 문제를 삭제할까요?`)) return
+    setBulkDeleting(true)
+    setError(null)
+    try {
+      await Promise.all([...selectedIds].map((id) => api.adminDeleteProblem(actor, id)))
+      setSelectedIds(new Set())
+      await load()
+    } catch {
+      setError('일부 문제 삭제에 실패했습니다.')
+    } finally {
+      setBulkDeleting(false)
+    }
+  }
+
   const normalizedQuery = query.trim().toLocaleLowerCase()
   const filteredProblems = problems.filter((p) => {
     const searchable = `${p.question} ${p.answer} ${p.ownerName} ${p.projectTitle} ${p.refCourse ?? ''} ${p.refSession ?? ''}`.toLocaleLowerCase()
@@ -115,6 +149,26 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
               <option value="">전체 과정</option>{courses.map((course) => <option key={course} value={course}>{course}</option>)}
             </select>
           </div>
+          {filteredProblems.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-neutral-50 px-3 py-2 dark:bg-neutral-900">
+              <label className="flex items-center gap-2 text-xs text-neutral-600 dark:text-neutral-300">
+                <input
+                  type="checkbox"
+                  checked={filteredProblems.every((p) => selectedIds.has(p.id))}
+                  onChange={toggleSelectAllFiltered}
+                />
+                검색 결과 전체 선택 ({filteredProblems.length}개)
+              </label>
+              <button
+                type="button"
+                onClick={handleBulkDelete}
+                disabled={selectedIds.size === 0 || bulkDeleting}
+                className="whitespace-nowrap rounded-lg border border-red-300 px-3 py-1 text-xs text-red-500 disabled:opacity-40"
+              >
+                {bulkDeleting ? '삭제하는 중…' : `선택 삭제 (${selectedIds.size})`}
+              </button>
+            </div>
+          )}
           <ul className="flex flex-col gap-3 text-sm">
             {filteredProblems.map((p) =>
               editingId === p.id ? (
@@ -147,24 +201,32 @@ export default function ProblemModerationPanel({ actor }: { actor: { adminToken?
                   </div>
                 </li>
               ) : (
-                <li key={p.id} className="rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
-                  <div>
-                    <p className="text-xs text-neutral-400">
-                      {p.projectTitle} · {p.ownerName} · {typeLabel[p.type]}
-                    </p>
-                    <p className={`text-neutral-900 dark:text-neutral-50 ${expandedIds.has(p.id) ? '' : 'line-clamp-2'}`}>{p.question}</p>
-                    <p className="text-xs text-neutral-500">정답: {p.type === 'bible' ? formatBibleAnswer(p.answer) : p.answer}</p>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap justify-end gap-2 text-xs sm:text-sm">
-                    <button type="button" onClick={() => toggleExpanded(p.id)} className="text-neutral-500 hover:underline">
-                      {expandedIds.has(p.id) ? '접기' : '펼치기'}
-                    </button>
-                    <button type="button" onClick={() => startEdit(p)} className="text-accent hover:underline">
-                      수정
-                    </button>
-                    <button type="button" onClick={() => handleDelete(p.id)} className="text-red-500 hover:underline">
-                      삭제
-                    </button>
+                <li key={p.id} className="flex gap-3 rounded-lg border border-neutral-200 p-3 dark:border-neutral-800">
+                  <input
+                    type="checkbox"
+                    className="mt-1 shrink-0"
+                    checked={selectedIds.has(p.id)}
+                    onChange={() => toggleSelected(p.id)}
+                  />
+                  <div className="flex flex-1 flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="text-xs text-neutral-400">
+                        {p.projectTitle} · {p.ownerName} · {typeLabel[p.type]}
+                      </p>
+                      <p className={`text-neutral-900 dark:text-neutral-50 ${expandedIds.has(p.id) ? '' : 'line-clamp-2'}`}>{p.question}</p>
+                      <p className="text-xs text-neutral-500">정답: {p.type === 'bible' ? formatBibleAnswer(p.answer) : p.answer}</p>
+                    </div>
+                    <div className="flex shrink-0 flex-wrap justify-end gap-2 text-xs sm:text-sm">
+                      <button type="button" onClick={() => toggleExpanded(p.id)} className="text-neutral-500 hover:underline">
+                        {expandedIds.has(p.id) ? '접기' : '펼치기'}
+                      </button>
+                      <button type="button" onClick={() => startEdit(p)} className="text-accent hover:underline">
+                        수정
+                      </button>
+                      <button type="button" onClick={() => handleDelete(p.id)} className="text-red-500 hover:underline">
+                        삭제
+                      </button>
+                    </div>
                   </div>
                 </li>
               ),

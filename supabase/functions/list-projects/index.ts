@@ -25,11 +25,16 @@ Deno.serve(async (req) => {
 
     const { data: projects, error } = await supabase
       .from('projects')
-      .select('id, title, session_count, created_at')
+      .select('id, title, session_count, created_at, problems(count)')
       .order('created_at', { ascending: false })
     if (error) throw error
 
-    return new Response(JSON.stringify({ projects: projects ?? [] }), {
+    const withCount = (projects ?? []).map((p) => {
+      const { problems, ...rest } = p as typeof p & { problems: Array<{ count: number }> }
+      return { ...rest, problem_count: problems?.[0]?.count ?? 0 }
+    })
+
+    return new Response(JSON.stringify({ projects: withCount }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err) {

@@ -4,6 +4,7 @@ import StudentShell, { Icon } from '../components/StudentShell'
 import { api, type Problem, type ProblemComment, type Project } from '../lib/api'
 import { studentSession, type StudentUser } from '../lib/session'
 import { formatBibleAnswer } from '../lib/format'
+import { NewContentNotice } from '../components/NewContentNotice'
 
 type HistoryItem = { id: string; started_at: string; total: number; correct: number }
 type WeakArea = { refCourse: string; refSession: string; total: number; correct: number; rate: number }
@@ -326,7 +327,7 @@ function StudentHomePage() {
   }
 
   if (!user) return null
-  return <StudentShell><main className="student-shell">
+  return <StudentShell><NewContentNotice projects={projects} loading={loading} /><main className="student-shell">
     <section className="welcome-row">
       <div><h1>{greeting}, {user.displayName}님</h1><p>오늘도 말씀을 차분히 익혀보세요.</p></div>
       <p className="today-date">{dateLabel}</p>

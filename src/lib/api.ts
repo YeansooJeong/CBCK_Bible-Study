@@ -77,6 +77,7 @@ export interface Project {
   title: string
   session_count: number
   created_at: string
+  problem_count?: number
 }
 
 export interface Problem {
@@ -103,8 +104,6 @@ export const api = {
 
   activateAccount: (payload: {
     phone: string
-    name: string
-    kjvYear: string
     password: string
   }) => callFunction<{ success: true }>('activate-account', { body: payload }),
 
