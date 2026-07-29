@@ -8,7 +8,9 @@ import { NewContentNotice } from '../components/NewContentNotice'
 
 type HistoryItem = { id: string; started_at: string; total: number; correct: number }
 type WeakArea = { refCourse: string; refSession: string; total: number; correct: number; rate: number }
-type Summary = { total: number; correct: number; score: number; weakAreas: WeakArea[] }
+type Summary = { total: number; correct: number; partial?: number; earned?: number; score: number; weakAreas: WeakArea[] }
+// 채점 결과는 정답/부분정답/오답 3단계다. 부분정답은 점수의 일부만 받는다.
+type Verdict = 'correct' | 'partial' | 'wrong'
 type Scope = { course: string; sessions: string[] }
 
 function sameLocalDay(a: Date, b: Date) { return a.toDateString() === b.toDateString() }
@@ -38,7 +40,8 @@ function StudentHomePage() {
   const [problems, setProblems] = useState<Problem[]>([])
   const [questionIndex, setQuestionIndex] = useState(0)
   const [answer, setAnswer] = useState('')
-  const [result, setResult] = useState<boolean | null>(null)
+  const [result, setResult] = useState<Verdict | null>(null)
+  const [score, setScore] = useState(0)
   const [correctAnswer, setCorrectAnswer] = useState<string | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -285,7 +288,10 @@ function StudentHomePage() {
     setSubmitting(true)
     try {
       const data = await api.submitAnswer(token, { sessionId, problemId: question.id, userAnswer: answer })
-      setResult(data.isCorrect)
+      // 채점 함수(submit-answer)는 프론트와 배포 경로가 달라 잠시 구버전 응답이 올 수 있다.
+      // verdict가 없으면 기존 isCorrect로 판정을 대신한다.
+      setResult(data.verdict ?? (data.isCorrect ? 'correct' : 'wrong'))
+      setScore(data.score ?? (data.isCorrect ? 1 : 0))
       setCorrectAnswer(data.answer)
       loadComments(question.id)
     }
@@ -380,7 +386,7 @@ function StudentHomePage() {
       {selectedProject && (scopes[0]?.sessions.length ?? 0) > 0 && <label>회차<select value={selectedSession} onChange={(event) => setSelectedSession(event.target.value)}><option value="">전체 회차 ({projects.find((p) => p.id === selectedProject)?.session_count ?? scopes[0].sessions.length}강 전체)</option>{[...scopes[0].sessions].sort((a, b) => Number(a) - Number(b)).map((session) => <option key={session} value={session}>{session}강</option>)}</select></label>}
       <label>문제 수<div className="count-options">{[5, 10, 20, 50].map((value) => <button type="button" className={count === value ? 'chosen' : ''} onClick={() => setCount(value)} key={value}>{value}문제</button>)}</div></label>
       <button className="primary-button wide" disabled={submitting} onClick={startQuiz}>{submitting ? '문제를 준비하는 중…' : `${count}문제 학습 시작`} {!submitting && <Icon name="arrow"/>}</button>
-    </div> : summary ? <div className="quiz-result"><div className="result-ring" style={{ '--score': `${summary.score}%` } as React.CSSProperties}><strong>{summary.score}</strong><span>점</span></div><p className="eyebrow">학습 완료</p><h2 id="quiz-title">오늘의 복습을 마쳤어요</h2><p>{summary.total}문제 중 <strong>{summary.correct}문제</strong>를 맞혔습니다.<br/>틀린 문제의 레퍼런스를 다시 확인해 보세요.</p>
+    </div> : summary ? <div className="quiz-result"><div className="result-ring" style={{ '--score': `${summary.score}%` } as React.CSSProperties}><strong>{summary.score}</strong><span>점</span></div><p className="eyebrow">학습 완료</p><h2 id="quiz-title">오늘의 복습을 마쳤어요</h2><p>{summary.total}문제 중 <strong>{summary.correct}문제</strong>를 맞혔습니다.{(summary.partial ?? 0) > 0 && <> 부분 정답 <strong>{summary.partial}문제</strong>를 더해 <strong>{summary.earned}점</strong>을 얻었어요.</>}<br/>틀린 문제의 레퍼런스를 다시 확인해 보세요.</p>
       {summary.weakAreas.some((area) => area.rate < 100) && <div className="weak-areas">
         <p className="eyebrow">취약 구간</p>
         <ul>{summary.weakAreas.filter((area) => area.rate < 100).slice(0, 5).map((area) => <li key={`${area.refCourse}::${area.refSession}`}><span>{area.refCourse}{area.refSession ? ` · ${area.refSession}` : ''}</span><strong>{area.correct}/{area.total} ({area.rate}%)</strong></li>)}</ul>
@@ -388,7 +394,7 @@ function StudentHomePage() {
       <div className="result-actions"><button className="secondary-button" onClick={() => openQuiz(selectedProject)}>다시 풀기</button><button className="primary-button" onClick={closeQuiz}>학습 마치기</button></div></div>
     : question && <div className="quiz-body"><button type="button" className={`bookmark-fab${bookmarkedIds.has(question.id) ? ' active' : ''}`} aria-label={bookmarkedIds.has(question.id) ? '북마크 해제' : '북마크에 추가'} aria-pressed={bookmarkedIds.has(question.id)} onClick={toggleBookmark}>★</button><div className="quiz-top"><div><p className="eyebrow">{question.ref_course || '문제은행'} {question.ref_session ? `${question.ref_session}강` : ''}</p><span>{questionIndex + 1} / {problems.length}</span></div><div className="quiz-progress"><span style={{ width: `${(questionIndex + 1) / problems.length * 100}%` }}/></div></div><h2 id="quiz-title">{question.question}</h2>
       {question.options ? <div className="answer-options">{Object.entries(question.options).map(([key, value]) => <button key={key} disabled={result !== null} className={answer === key ? 'selected' : ''} onClick={() => setAnswer(key)}><span>{key}</span>{value}</button>)}</div> : <input className="answer-input" value={answer} disabled={result !== null} onChange={(event) => setAnswer(event.target.value)} placeholder={question.type === 'bible' ? '예: 히브리서 11:1' : '답안을 입력하세요'} />}
-      {result !== null && <div className={`feedback ${result ? 'correct' : 'wrong'}`}><strong>{result ? '정답이에요.' : '한 번 더 기억해 주세요.'}</strong>{result === false && correctAnswer && <p className="feedback-answer">정답: {question.options ? (question.options[correctAnswer] ?? correctAnswer) : question.type === 'bible' ? formatBibleAnswer(correctAnswer) : correctAnswer}</p>}<p>{[question.ref_course, question.ref_session ? `${question.ref_session}강` : '', question.ref_kind, question.ref_detail].filter(Boolean).join(' · ') || '등록된 레퍼런스가 없습니다.'}</p></div>}
+      {result !== null && <div className={`feedback ${result}`}><strong>{result === 'correct' ? '정답이에요.' : result === 'partial' ? `거의 맞았어요. 부분 점수 ${Math.round(score * 100)}%를 받았어요.` : '한 번 더 기억해 주세요.'}</strong>{result !== 'correct' && correctAnswer && <p className="feedback-answer">정답: {question.options ? (question.options[correctAnswer] ?? correctAnswer) : question.type === 'bible' ? formatBibleAnswer(correctAnswer) : correctAnswer}</p>}<p>{[question.ref_course, question.ref_session ? `${question.ref_session}강` : '', question.ref_kind, question.ref_detail].filter(Boolean).join(' · ') || '등록된 레퍼런스가 없습니다.'}</p></div>}
       {result !== null && <div className="comment-block">
         <button type="button" className="comment-bubble" onClick={() => setCommentPanelOpen((value) => !value)}>
           <Icon name="file" size={16}/> 댓글 {(commentsByProblem[question.id] ?? []).length > 0 && <span className="comment-count">{(commentsByProblem[question.id] ?? []).length}</span>}

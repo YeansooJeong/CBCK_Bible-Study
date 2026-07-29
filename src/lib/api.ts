@@ -241,13 +241,23 @@ export const api = {
     ),
 
   submitAnswer: (userToken: string, payload: { sessionId: string; problemId: string; userAnswer: string }) =>
-    callFunction<{ success: true; isCorrect: boolean; matchScore: number; answer: string }>('submit-answer', { userToken, body: payload }),
+    callFunction<{
+      success: true
+      isCorrect: boolean
+      // verdict/score는 신버전 submit-answer에서만 내려온다(배포 시차 대비 optional).
+      verdict?: 'correct' | 'partial' | 'wrong'
+      score?: number
+      matchScore: number
+      answer: string
+    }>('submit-answer', { userToken, body: payload }),
 
   finishQuizSession: (userToken: string, sessionId: string) =>
     callFunction<{
       success: true
       total: number
       correct: number
+      partial?: number
+      earned?: number
       score: number
       weakAreas: Array<{ refCourse: string; refSession: string; total: number; correct: number; rate: number }>
     }>('finish-quiz-session', { userToken, body: { sessionId } }),

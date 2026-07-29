@@ -32,7 +32,7 @@ type | question | option1 | option2 | option3 | option4 | answer | keywords | re
 - question: 문제 본문
 - option1~4: mcq일 때만 4개 보기를 채우고, 그 외 유형은 비워둬
 - answer: mcq는 정답 보기의 번호(1~4 중 하나), short는 정답 문장, bible은 세미콜론 없이 "책 장:절" 형식(예: 히브리서 11:1)
-- keywords: short 유형일 때만 정답으로 인정할 핵심 단어를 세미콜론(;)으로 구분해서 적고, 그 외 유형은 비워둬
+- keywords: short 유형일 때만 정답으로 인정할 핵심 단어를 세미콜론(;)으로 구분해서 적고, 그 외 유형은 비워둬. 일부만 맞혀도 그 비율만큼 부분 점수를 받아
 - ref_session: [회차] 값을 숫자만 그대로 적어줘(예: 3)
 - ref_kind: 정답의 출처가 "강의요약본"인지 "강의영상"인지 둘 중 하나
 - ref_detail: 정답을 다시 찾을 수 있는 대략적 위치(예: "초반부", "유튜브 강의 1분 50초경", "PDF 중반부") — 알 수 있으면 적어줘
