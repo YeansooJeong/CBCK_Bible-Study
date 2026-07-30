@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import StudentShell, { Icon } from '../components/StudentShell'
-import { api, type Problem, type ProblemComment, type Project } from '../lib/api'
+import { api, type Problem, type ProblemComment, type ProblemType, type Project } from '../lib/api'
 import { studentSession, type StudentUser } from '../lib/session'
 import { formatBibleAnswer } from '../lib/format'
 import { NewContentNotice } from '../components/NewContentNotice'
@@ -11,6 +11,14 @@ type WeakArea = { refCourse: string; refSession: string; total: number; correct:
 type Summary = { total: number; correct: number; partial?: number; earned?: number; score: number; weakAreas: WeakArea[] }
 // 채점 결과는 정답/부분정답/오답 3단계다. 부분정답은 점수의 일부만 받는다.
 type Verdict = 'correct' | 'partial' | 'wrong'
+
+// 학습 시작 화면에서 고를 수 있는 문제 유형. 기본값은 전체 선택이다.
+const problemTypeOptions: Array<{ value: ProblemType; label: string }> = [
+  { value: 'mcq', label: '객관식' },
+  { value: 'short', label: '단답형' },
+  { value: 'bible', label: '성경문제' },
+]
+const allProblemTypes = problemTypeOptions.map((option) => option.value)
 type Scope = { course: string; sessions: string[] }
 
 function sameLocalDay(a: Date, b: Date) { return a.toDateString() === b.toDateString() }
@@ -34,6 +42,7 @@ function StudentHomePage() {
   const [quizOpen, setQuizOpen] = useState(() => Boolean((location.state as { openStudy?: boolean } | null)?.openStudy))
   const [selectedProject, setSelectedProject] = useState('')
   const [count, setCount] = useState(10)
+  const [selectedTypes, setSelectedTypes] = useState<ProblemType[]>(allProblemTypes)
   const [scopes, setScopes] = useState<Scope[]>([])
   const [selectedSession, setSelectedSession] = useState('')
   const [sessionId, setSessionId] = useState<string | null>(null)
@@ -261,6 +270,11 @@ function StudentHomePage() {
       .catch(() => setScopes([]))
   }, [quizOpen, sessionId, selectedProject])
 
+  // 마지막 한 개는 끌 수 없게 버튼을 비활성화하므로 여기서 빈 배열이 될 일은 없다.
+  function toggleType(value: ProblemType) {
+    setSelectedTypes((current) => (current.includes(value) ? current.filter((type) => type !== value) : [...current, value]))
+  }
+
   async function startQuiz() {
     const token = studentSession.get(); if (!token) return navigate('/login')
     setSubmitting(true); setError('')
@@ -270,10 +284,16 @@ function StudentHomePage() {
         refSession: selectedSession || undefined,
         bookmarkedOnly,
         count,
+        types: selectedTypes,
       })
       setSessionId(data.sessionId); setProblems(data.problems); setQuestionIndex(0); setAnswer(''); setResult(null); setCorrectAnswer(null)
       setCommentPanelOpen(false); setCommentDraft(''); setEditingCommentId(null)
-    } catch { setError('선택한 범위에 출제 가능한 문제가 없습니다.') }
+    } catch {
+      const typeNames = problemTypeOptions.filter((option) => selectedTypes.includes(option.value)).map((option) => option.label).join('·')
+      setError(selectedTypes.length < allProblemTypes.length
+        ? `선택한 범위에 ${typeNames} 문제가 없습니다. 유형을 더 선택해 보세요.`
+        : '선택한 범위에 출제 가능한 문제가 없습니다.')
+    }
     finally { setSubmitting(false) }
   }
 
@@ -384,6 +404,10 @@ function StudentHomePage() {
       {error && <div className="notice error">{error}</div>}
       <label>학습 범위<select value={selectedProject} onChange={(event) => { setSelectedProject(event.target.value); setSelectedSession('') }}><option value="">전체 문제</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
       {selectedProject && (scopes[0]?.sessions.length ?? 0) > 0 && <label>회차<select value={selectedSession} onChange={(event) => setSelectedSession(event.target.value)}><option value="">전체 회차 ({projects.find((p) => p.id === selectedProject)?.session_count ?? scopes[0].sessions.length}강 전체)</option>{[...scopes[0].sessions].sort((a, b) => Number(a) - Number(b)).map((session) => <option key={session} value={session}>{session}강</option>)}</select></label>}
+      <label>문제 유형<div className="count-options type-options">{problemTypeOptions.map(({ value, label }) => {
+        const chosen = selectedTypes.includes(value)
+        return <button type="button" key={value} className={chosen ? 'chosen' : ''} aria-pressed={chosen} disabled={chosen && selectedTypes.length === 1} onClick={() => toggleType(value)}>{label}</button>
+      })}</div></label>
       <label>문제 수<div className="count-options">{[5, 10, 20, 50].map((value) => <button type="button" className={count === value ? 'chosen' : ''} onClick={() => setCount(value)} key={value}>{value}문제</button>)}</div></label>
       <button className="primary-button wide" disabled={submitting} onClick={startQuiz}>{submitting ? '문제를 준비하는 중…' : `${count}문제 학습 시작`} {!submitting && <Icon name="arrow"/>}</button>
     </div> : summary ? <div className="quiz-result"><div className="result-ring" style={{ '--score': `${summary.score}%` } as React.CSSProperties}><strong>{summary.score}</strong><span>점</span></div><p className="eyebrow">학습 완료</p><h2 id="quiz-title">오늘의 복습을 마쳤어요</h2><p>{summary.total}문제 중 <strong>{summary.correct}문제</strong>를 맞혔습니다.{(summary.partial ?? 0) > 0 && <> 부분 정답 <strong>{summary.partial}문제</strong>를 더해 <strong>{summary.earned}점</strong>을 얻었어요.</>}<br/>틀린 문제의 레퍼런스를 다시 확인해 보세요.</p>

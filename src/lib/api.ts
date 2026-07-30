@@ -231,7 +231,15 @@ export const api = {
 
   startQuizSession: (
     userToken: string,
-    payload: { projectId?: string; refCourse?: string; refSession?: string; count?: number; bookmarkedOnly?: boolean },
+    payload: {
+      projectId?: string
+      refCourse?: string
+      refSession?: string
+      count?: number
+      bookmarkedOnly?: boolean
+      // 출제할 문제 유형. 비우면 전체 유형에서 출제한다.
+      types?: ProblemType[]
+    },
   ) => callFunction<{ success: true; sessionId: string; problems: Problem[] }>('start-quiz-session', { userToken, body: payload }),
 
   listQuizScopes: (userToken: string, projectId?: string) =>
