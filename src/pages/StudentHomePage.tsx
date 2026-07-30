@@ -19,6 +19,13 @@ const problemTypeOptions: Array<{ value: ProblemType; label: string }> = [
   { value: 'bible', label: '성경문제' },
 ]
 const allProblemTypes = problemTypeOptions.map((option) => option.value)
+
+// 정답과 함께 보여주는 출처 문구. 퀴즈 채점 피드백과 플래시카드가 같은 형식을 쓴다.
+function formatReference(problem: Problem): string {
+  return [problem.ref_course, problem.ref_session ? `${problem.ref_session}강` : '', problem.ref_kind, problem.ref_detail]
+    .filter(Boolean)
+    .join(' · ') || '등록된 레퍼런스가 없습니다.'
+}
 type Scope = { course: string; sessions: string[] }
 
 function sameLocalDay(a: Date, b: Date) { return a.toDateString() === b.toDateString() }
@@ -161,6 +168,7 @@ function StudentHomePage() {
   const greeting = new Date().getHours() >= 18 ? '평안한 저녁이에요' : '평안한 하루예요'
   const dateLabel = new Intl.DateTimeFormat('ko-KR', { month: 'long', day: 'numeric' }).format(new Date())
   const question = problems[questionIndex]
+  const flashCard = flashCards[flashIndex]
 
   function openQuiz(projectId = '') {
     setSelectedProject(projectId); setSelectedSession(''); setBookmarkedOnly(false)
@@ -418,7 +426,7 @@ function StudentHomePage() {
       <div className="result-actions"><button className="secondary-button" onClick={() => openQuiz(selectedProject)}>다시 풀기</button><button className="primary-button" onClick={closeQuiz}>학습 마치기</button></div></div>
     : question && <div className="quiz-body"><button type="button" className={`bookmark-fab${bookmarkedIds.has(question.id) ? ' active' : ''}`} aria-label={bookmarkedIds.has(question.id) ? '북마크 해제' : '북마크에 추가'} aria-pressed={bookmarkedIds.has(question.id)} onClick={toggleBookmark}>★</button><div className="quiz-top"><div><p className="eyebrow">{question.ref_course || '문제은행'} {question.ref_session ? `${question.ref_session}강` : ''}</p><span>{questionIndex + 1} / {problems.length}</span></div><div className="quiz-progress"><span style={{ width: `${(questionIndex + 1) / problems.length * 100}%` }}/></div></div><h2 id="quiz-title">{question.question}</h2>
       {question.options ? <div className="answer-options">{Object.entries(question.options).map(([key, value]) => <button key={key} disabled={result !== null} className={answer === key ? 'selected' : ''} onClick={() => setAnswer(key)}><span>{key}</span>{value}</button>)}</div> : <input className="answer-input" value={answer} disabled={result !== null} onChange={(event) => setAnswer(event.target.value)} placeholder={question.type === 'bible' ? '예: 히브리서 11:1' : '답안을 입력하세요'} />}
-      {result !== null && <div className={`feedback ${result}`}><strong>{result === 'correct' ? '정답이에요.' : result === 'partial' ? `거의 맞았어요. 부분 점수 ${Math.round(score * 100)}%를 받았어요.` : '한 번 더 기억해 주세요.'}</strong>{result !== 'correct' && correctAnswer && <p className="feedback-answer">정답: {question.options ? (question.options[correctAnswer] ?? correctAnswer) : question.type === 'bible' ? formatBibleAnswer(correctAnswer) : correctAnswer}</p>}<p>{[question.ref_course, question.ref_session ? `${question.ref_session}강` : '', question.ref_kind, question.ref_detail].filter(Boolean).join(' · ') || '등록된 레퍼런스가 없습니다.'}</p></div>}
+      {result !== null && <div className={`feedback ${result}`}><strong>{result === 'correct' ? '정답이에요.' : result === 'partial' ? `거의 맞았어요. 부분 점수 ${Math.round(score * 100)}%를 받았어요.` : '한 번 더 기억해 주세요.'}</strong>{result !== 'correct' && correctAnswer && <p className="feedback-answer">정답: {question.options ? (question.options[correctAnswer] ?? correctAnswer) : question.type === 'bible' ? formatBibleAnswer(correctAnswer) : correctAnswer}</p>}<p>{formatReference(question)}</p></div>}
       {result !== null && <div className="comment-block">
         <button type="button" className="comment-bubble" onClick={() => setCommentPanelOpen((value) => !value)}>
           <Icon name="file" size={16}/> 댓글 {(commentsByProblem[question.id] ?? []).length > 0 && <span className="comment-count">{(commentsByProblem[question.id] ?? []).length}</span>}
@@ -456,7 +464,7 @@ function StudentHomePage() {
       </div>
     </div> : <div className="quiz-body"><button type="button" className={`bookmark-fab${bookmarkedIds.has(flashCards[flashIndex].id) ? ' active' : ''}`} aria-label={bookmarkedIds.has(flashCards[flashIndex].id) ? '북마크 해제' : '북마크에 추가'} aria-pressed={bookmarkedIds.has(flashCards[flashIndex].id)} onClick={toggleFlashBookmark}>★</button><div className="quiz-top"><div><p className="eyebrow">{flashCards[flashIndex].ref_course || '문제은행'} {flashCards[flashIndex].ref_session ? `${flashCards[flashIndex].ref_session}강` : ''}</p><span>{flashIndex + 1} / {flashCards.length}</span></div><div className="quiz-progress"><span style={{ width: `${(flashIndex + 1) / flashCards.length * 100}%` }} /></div></div>
       <div className="flashcard-face"><h2>{flashCards[flashIndex].question}</h2>
-        {flashRevealed && <div className="flashcard-reveal"><strong>{flashCards[flashIndex].options ? (flashCards[flashIndex].options![flashCards[flashIndex].answer] ?? flashCards[flashIndex].answer) : flashCards[flashIndex].type === 'bible' ? formatBibleAnswer(flashCards[flashIndex].answer) : flashCards[flashIndex].answer}</strong><span>정답</span></div>}
+        {flashRevealed && <div className="flashcard-reveal"><strong>{flashCard.options ? (flashCard.options[flashCard.answer] ?? flashCard.answer) : flashCard.type === 'bible' ? formatBibleAnswer(flashCard.answer) : flashCard.answer}</strong><span>정답</span><p className="flashcard-reference"><b>출처</b> {formatReference(flashCard)}</p></div>}
       </div>
       {!flashRevealed ? <button className="primary-button wide" onClick={() => setFlashRevealed(true)}>정답 보기 <Icon name="arrow" /></button> : <div className="flashcard-choices"><button type="button" className="unknown" onClick={() => markFlashcard(false)}>몰랐어요</button><button type="button" className="know" onClick={() => markFlashcard(true)}>알고 있었어요</button></div>}
     </div>}
