@@ -1,14 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, type Problem, type ProblemShareScope, type Project } from '../lib/api'
+import { api, ApiError, type Problem, type ProblemShareScope, type Project } from '../lib/api'
 import { studentSession } from '../lib/session'
-import { parseCsvLine, downloadCsv } from '../lib/csv'
+import { parseCsvRows, readCsvFile, downloadCsv } from '../lib/csv'
 import { formatBibleAnswer } from '../lib/format'
 import StudentShell, { Icon } from '../components/StudentShell'
 
 const typeLabel: Record<Problem['type'], string> = { mcq: '4지선다', short: '단답형', bible: '성경문제' }
 
-// 1행: 헤더, 2~4행: 유형별(mcq/short/bible) 작성 예시, 5행부터 실제 문제 데이터
+// 1행 헤더 + 2~4행에 유형별(mcq/short/bible) 작성 예시. 예시를 지우고 써도 되고
+// 그대로 두고 5행부터 채워도 된다(업로더가 예시 행을 내용으로 알아본다).
 const SAMPLE_CSV =
   'type,question,option1,option2,option3,option4,answer,keywords,ref_session,ref_kind,ref_detail\n' +
   'mcq,"천지창조는 며칠 동안 이루어졌는가?",3일,6일,7일,40일,2,,1,강의요약본,초반부\n' +
@@ -20,46 +21,57 @@ function downloadSampleCsv() {
 }
 
 // ChatGPT/Claude/NotebookLM 등 어떤 생성형 AI에도 붙여넣어 쓸 수 있도록 범용으로 작성.
-// 표는 확인용, 그 아래 헤더 없는 CSV 블록만 복사해 샘플 양식 5행부터 붙여넣으면 됨.
-function buildAiPrompt(projectTitle: string) {
+// 업로더가 헤더 행을 스스로 찾으므로, 확인용 표 없이 헤더 포함 CSV 하나만 받으면 된다.
+function buildAiPrompt(projectTitle: string, sessionCount: number) {
   return `아래 소스 자료를 바탕으로 문제 [문제 개수]개를 만들어줘. 대부분 4지선다(mcq)로 내고, 필요하면 단답형(short)이나 성경문제(bible)를 섞어줘. 이 문제들은 "${projectTitle}" 과목의 [회차]강 내용이야.
 
-먼저 아래 열로 구성된 표를 만들어서 보여줘(내용 확인용):
-type | question | option1 | option2 | option3 | option4 | answer | keywords | ref_session | ref_kind | ref_detail
+결과는 다른 설명 없이 CSV 하나로만 출력해줘. 첫 줄은 아래 헤더를 그대로 쓰고, 그 아래에 문제를 한 줄씩 적어줘. 값 안에 쉼표나 큰따옴표, 줄바꿈이 들어가면 그 값을 큰따옴표로 감싸줘.
+type,question,option1,option2,option3,option4,answer,keywords,ref_session,ref_kind,ref_detail
 
 각 열 작성 규칙:
 - type: mcq(객관식) / short(단답형) / bible(성경문제) 중 하나
 - question: 문제 본문
 - option1~4: mcq일 때만 4개 보기를 채우고, 그 외 유형은 비워둬
-- answer: mcq는 정답 보기의 번호(1~4 중 하나), short는 정답 문장, bible은 세미콜론 없이 "책 장:절" 형식(예: 히브리서 11:1)
+- answer: mcq는 반드시 정답 보기의 번호(1~4 중 하나)만 숫자로. 보기 문구를 적으면 안 돼. short는 정답 문장, bible은 "책 장:절" 형식(예: 히브리서 11:1)
 - keywords: short 유형일 때만 정답으로 인정할 핵심 단어를 세미콜론(;)으로 구분해서 적고, 그 외 유형은 비워둬. 일부만 맞혀도 그 비율만큼 부분 점수를 받아
-- ref_session: [회차] 값을 숫자만 그대로 적어줘(예: 3)
-- ref_kind: 정답의 출처가 "강의요약본"인지 "강의영상"인지 둘 중 하나
+- ref_session: [회차] 값을 숫자만 그대로 적어줘(예: 3). 이 과목은 1~${sessionCount}강까지만 가능해
+- ref_kind: "강의요약본" 또는 "강의영상" 둘 중 하나만 (다른 표현 금지)
 - ref_detail: 정답을 다시 찾을 수 있는 대략적 위치(예: "초반부", "유튜브 강의 1분 50초경", "PDF 중반부") — 알 수 있으면 적어줘
 
-표를 보여준 다음, 같은 내용을 아래 형식으로 한 번 더 출력해줘. 이번엔 헤더 없이 각 문제를 한 줄씩, 쉼표(,)로 구분한 CSV 형식으로만 출력하고(다른 설명 문구 없이), 값 안에 쉼표나 큰따옴표가 들어가면 큰따옴표로 감싸줘. 예시:
-"mcq","천지창조는 며칠 동안 이루어졌는가?","3일","6일","7일","40일","2","","3","강의요약본","초반부"
+작성 예시:
+mcq,"천지창조는 며칠 동안 이루어졌는가?",3일,6일,7일,40일,2,,3,강의요약본,초반부
 
-이 두 번째 CSV 블록만 복사해서, CBCK 문제은행 사이트에서 다운로드한 샘플 양식 파일의 5행부터 그대로 붙여넣어 사용할 거야. 정답은 반드시 아래 소스 자료 안에서 실제로 확인 가능한 내용으로만 출제해줘.
+정답은 반드시 아래 소스 자료 안에서 실제로 확인 가능한 내용으로만 출제해줘.
 
 [여기에 소스 자료(강의 스크립트, PDF 텍스트 등)를 붙여넣으세요]`
 }
 
 const VALID_PROBLEM_TYPES: Problem['type'][] = ['mcq', 'short', 'bible']
+const VALID_REF_KINDS = ['강의요약본', '강의영상']
+const REQUIRED_HEADERS = ['type', 'question', 'answer']
+
+// 샘플 양식 2~4행의 작성 예시. 이 셀 구성과 완전히 같은 행만 예시로 보고 건너뛴다.
+// 행 위치로 판단하면(예: 무조건 4행 건너뛰기) 예시 없이 헤더+데이터만 있는 CSV에서
+// 실제 문제 3개가 조용히 사라지므로, 내용으로 판별한다.
+const EXAMPLE_ROW_KEYS = new Set(
+  parseCsvRows(SAMPLE_CSV)
+    .slice(1)
+    .filter((cells) => cells.some(Boolean))
+    .map((cells) => cells.join('\u0000')),
+)
 
 // 값이 없어야 할 자리(예: mcq가 아닌 유형의 보기 칸)까지 셀 개수는 항상 헤더와 맞아야 하며,
 // AI가 생성한 CSV에서 따옴표 누락 등으로 열이 밀리면 이 단계에서 바로 잡아낸다.
-function parseCsv(text: string) {
-  const rows = text.trim().split(/\r?\n/).map(parseCsvLine)
-  if (rows.length < 5) throw new Error('no_data')
-  const headers = rows[0]
-  const required = ['type', 'question', 'answer']
-  if (required.some((h) => !headers.includes(h))) throw new Error('header')
-  // 1행 헤더 + 2~4행 예시는 건너뛰고 5행부터 실제 데이터로 읽음
+function parseCsv(text: string, sessionCount: number) {
+  const rows = parseCsvRows(text)
+  const headerIndex = rows.findIndex((cells) => REQUIRED_HEADERS.every((h) => cells.includes(h)))
+  if (headerIndex === -1) throw new Error('header')
+  const headers = rows[headerIndex]
   const dataRows = rows
-    .slice(4)
-    .map((cells, i) => ({ cells, rowNumber: i + 5 }))
+    .map((cells, index) => ({ cells, rowNumber: index + 1 }))
+    .slice(headerIndex + 1)
     .filter(({ cells }) => cells.some(Boolean))
+    .filter(({ cells }) => !EXAMPLE_ROW_KEYS.has(cells.join('\u0000')))
   if (dataRows.length === 0) throw new Error('no_data')
   return dataRows.map(({ cells: r, rowNumber }) => {
     if (r.length !== headers.length) throw new Error(`row_columns:${rowNumber}`)
@@ -70,24 +82,67 @@ function parseCsv(text: string) {
     if (!value('answer').trim()) throw new Error(`row_answer:${rowNumber}`)
     const options = ['1', '2', '3', '4'].map((n) => value(`option${n}`))
     if (type === 'mcq' && options.some((v) => !v.trim())) throw new Error(`row_options:${rowNumber}`)
+    // 보기 번호가 아닌 보기 문구를 정답에 적으면 업로드는 되지만 채점에서 영원히 오답이 된다.
+    if (type === 'mcq' && !['1', '2', '3', '4'].includes(value('answer').trim())) throw new Error(`row_answer_mcq:${rowNumber}`)
+    const refKind = value('ref_kind')
+    if (refKind && !VALID_REF_KINDS.includes(refKind)) throw new Error(`row_ref_kind:${rowNumber}`)
+    // 서버도 검사하지만, 여기서 걸러야 몇 행이 문제인지 안내할 수 있다.
+    const refSession = value('ref_session')
+    if (refSession) {
+      const sessionNumber = Number(refSession)
+      if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > sessionCount) {
+        throw new Error(`row_ref_session:${rowNumber}:${refSession}:${sessionCount}`)
+      }
+    }
     return {
-      type,
-      question: value('question'),
-      options: type === 'mcq' ? Object.fromEntries(options.map((v, i) => [String(i + 1), v])) : undefined,
-      answer: value('answer'),
-      keywords: value('keywords') || undefined,
-      refSession: value('ref_session') || undefined,
-      refKind: (value('ref_kind') || undefined) as '강의요약본' | '강의영상' | undefined,
-      refDetail: value('ref_detail') || undefined,
+      rowNumber,
+      problem: {
+        type,
+        question: value('question'),
+        options: type === 'mcq' ? Object.fromEntries(options.map((v, i) => [String(i + 1), v])) : undefined,
+        answer: value('answer'),
+        keywords: value('keywords') || undefined,
+        refSession: refSession || undefined,
+        refKind: (refKind || undefined) as '강의요약본' | '강의영상' | undefined,
+        refDetail: value('ref_detail') || undefined,
+      },
     }
   })
 }
 
-function describeCsvError(err: unknown): string {
+// rowNumbers: 서버가 돌려준 문제 순번(index)을 CSV 행 번호로 되돌리기 위한 표
+function describeCsvError(err: unknown, rowNumbers: number[] = []): string {
   const code = err instanceof Error ? err.message : ''
-  if (code === 'header') return '컬럼명(1행)이 올바르지 않습니다. 샘플 양식을 참고해주세요.'
-  if (code === 'no_data') return '5행부터 실제 문제 데이터를 입력해주세요.'
-  const [reason, rowNumber] = code.split(':')
+  if (code === 'header') return 'type · question · answer 컬럼이 있는 헤더 행을 찾지 못했습니다. 샘플 양식을 참고해주세요.'
+  if (code === 'no_data') return '헤더 아래에 실제 문제 데이터를 입력해주세요.'
+
+  if (err instanceof ApiError) {
+    const details = err.details as { index?: number; reason?: string } | undefined
+    const at = typeof details?.index === 'number' ? `${rowNumbers[details.index] ?? details.index + 1}행: ` : ''
+    switch (code) {
+      case 'too_many_problems':
+        return '한 번에 100개까지만 올릴 수 있습니다. 파일을 나눠서 올려주세요.'
+      case 'project_full':
+        return '이 과목의 문제 수가 한도(2000개)를 넘습니다.'
+      case 'invalid_problem':
+        switch (details?.reason) {
+          case 'ref_kind':
+            return `${at}출처 종류(ref_kind)는 "강의요약본" 또는 "강의영상"만 가능합니다.`
+          case 'ref_session':
+            return `${at}회차(ref_session)가 이 과목의 총 회차 범위를 벗어났습니다.`
+          case 'options':
+            return `${at}4지선다인데 보기 4개 중 비어 있는 칸이 있습니다.`
+          default:
+            return `${at}유형·문제·정답 중 비어 있거나 잘못된 값이 있습니다.`
+        }
+      case 'not_found':
+        return '과목을 찾을 수 없습니다. 새로고침 후 다시 시도해주세요.'
+      case 'unauthorized':
+        return '로그인이 만료되었습니다. 다시 로그인해주세요.'
+    }
+  }
+
+  const [reason, rowNumber, actual, limit] = code.split(':')
   switch (reason) {
     case 'row_columns':
       return `${rowNumber}행의 열 개수가 헤더와 맞지 않습니다. 값 안에 쉼표가 있으면 큰따옴표로 감싸주세요.`
@@ -99,6 +154,12 @@ function describeCsvError(err: unknown): string {
       return `${rowNumber}행에 정답이 비어 있습니다.`
     case 'row_options':
       return `${rowNumber}행은 4지선다인데 보기 4개 중 비어 있는 칸이 있습니다.`
+    case 'row_answer_mcq':
+      return `${rowNumber}행은 4지선다인데 정답이 보기 번호(1~4)가 아닙니다. 보기 문구가 아니라 번호를 적어주세요.`
+    case 'row_ref_kind':
+      return `${rowNumber}행의 출처 종류(ref_kind)는 "강의요약본" 또는 "강의영상"만 가능합니다.`
+    case 'row_ref_session':
+      return `${rowNumber}행의 회차(ref_session)가 "${actual}"인데, 이 과목은 총 ${limit}강까지입니다. 과목 설정에서 회차 수를 늘리거나 값을 고쳐주세요.`
     default:
       return 'CSV 업로드에 실패했습니다.'
   }
@@ -145,7 +206,7 @@ function ProjectDetailPage() {
 
   async function copyAiPrompt() {
     if (!project) return
-    await navigator.clipboard.writeText(buildAiPrompt(project.title))
+    await navigator.clipboard.writeText(buildAiPrompt(project.title, project.session_count))
     setPromptCopied(true)
     window.setTimeout(() => setPromptCopied(false), 2400)
   }
@@ -308,13 +369,16 @@ function ProjectDetailPage() {
                 if (!file) return
                 setCsvMessage(null)
                 setCsvFileName(file.name)
+                let rowNumbers: number[] = []
                 try {
-                  const imported = parseCsv(await file.text())
+                  const parsed = parseCsv(await readCsvFile(file), project?.session_count ?? 0)
+                  rowNumbers = parsed.map((entry) => entry.rowNumber)
+                  const imported = parsed.map((entry) => entry.problem)
                   await api.bulkCreateProblems(token, projectId!, imported)
                   setCsvMessage(`${imported.length}개 문제가 등록되었습니다.`)
                   await reload(token, projectId!)
                 } catch (err) {
-                  setCsvMessage(describeCsvError(err))
+                  setCsvMessage(describeCsvError(err, rowNumbers))
                 }
                 e.target.value = ''
               }}

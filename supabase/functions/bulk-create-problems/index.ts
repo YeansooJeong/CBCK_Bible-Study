@@ -12,22 +12,26 @@ Deno.serve(async (req) => {
     const userId = await requireUser(req, Deno.env.get('SESSION_JWT_SECRET')!)
     if (!userId) return json({ error: 'unauthorized' }, 401)
     const { projectId, problems } = await req.json()
-    if (!projectId || !Array.isArray(problems) || problems.length === 0 || problems.length > 100) {
+    if (!projectId || !Array.isArray(problems) || problems.length === 0) {
       return json({ error: 'invalid_payload' }, 400)
     }
+    // 개수 초과는 따로 알려야 업로드 화면에서 "나눠서 올려주세요"로 안내할 수 있다.
+    if (problems.length > 100) return json({ error: 'too_many_problems', limit: 100 }, 400)
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     const { data: project } = await supabase.from('projects').select('id, title, session_count').eq('id', projectId).maybeSingle()
     if (!project) return json({ error: 'not_found' }, 404)
     const { count } = await supabase.from('problems').select('id', { count: 'exact', head: true }).eq('project_id', projectId)
     if ((count ?? 0) + problems.length > MAX_PROBLEMS_PER_PROJECT) return json({ error: 'project_full' }, 400)
-    const rows = problems.map((p: any) => {
-      if (!VALID_TYPES.includes(p.type) || !String(p.question ?? '').trim() || !String(p.answer ?? '').trim()) throw new Error('invalid_problem')
-      if (p.type === 'mcq' && (!p.options || ['1', '2', '3', '4'].some((k) => !String(p.options[k] ?? '').trim()))) throw new Error('invalid_problem')
-      if (p.refKind && !VALID_REF_KINDS.includes(p.refKind)) throw new Error('invalid_problem')
+    const rows = problems.map((p: any, index: number) => {
+      // 어느 문제가 왜 거절됐는지 화면에서 안내할 수 있도록 위치와 사유를 함께 던진다.
+      const reject = (reason: string) => { throw new InvalidProblem(index, reason) }
+      if (!VALID_TYPES.includes(p.type) || !String(p.question ?? '').trim() || !String(p.answer ?? '').trim()) reject('basic')
+      if (p.type === 'mcq' && (!p.options || ['1', '2', '3', '4'].some((k) => !String(p.options[k] ?? '').trim()))) reject('options')
+      if (p.refKind && !VALID_REF_KINDS.includes(p.refKind)) reject('ref_kind')
       if (p.refSession) {
         const sessionNumber = Number(p.refSession)
         if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > project.session_count) {
-          throw new Error('invalid_problem')
+          reject('ref_session')
         }
       }
       return {
@@ -65,9 +69,20 @@ Deno.serve(async (req) => {
     return json({ success: true, created: rows.length })
   } catch (err) {
     console.error(err)
-    return json({ error: err instanceof Error && err.message === 'invalid_problem' ? 'invalid_problem' : 'internal_error' }, 400)
+    if (err instanceof InvalidProblem) return json({ error: 'invalid_problem', index: err.index, reason: err.reason }, 400)
+    return json({ error: 'internal_error' }, 400)
   }
 })
+
+class InvalidProblem extends Error {
+  index: number
+  reason: string
+  constructor(index: number, reason: string) {
+    super('invalid_problem')
+    this.index = index
+    this.reason = reason
+  }
+}
 
 function json(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })

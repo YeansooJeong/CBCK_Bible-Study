@@ -19,15 +19,18 @@ async function callFunction<T>(
   })
 
   const data = await res.json()
-  if (!res.ok) throw new ApiError(data.error ?? 'unknown_error', res.status)
+  if (!res.ok) throw new ApiError(data.error ?? 'unknown_error', res.status, data)
   return data as T
 }
 
 export class ApiError extends Error {
   status: number
-  constructor(code: string, status: number) {
+  // 서버가 오류와 함께 내려준 부가 정보(예: 몇 번째 문제가 왜 거절됐는지)
+  details?: Record<string, unknown>
+  constructor(code: string, status: number, details?: Record<string, unknown>) {
     super(code)
     this.status = status
+    this.details = details
   }
 }
 
