@@ -5,6 +5,7 @@ import { requireUser } from '../_shared/userAuth.ts'
 const VALID_TYPES = ['mcq', 'short', 'bible']
 const VALID_SHARE_SCOPES = ['inherit', 'private', 'all', 'selected']
 const VALID_REF_KINDS = ['강의요약본', '강의영상']
+const MAX_REF_SESSION = 999
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -64,7 +65,7 @@ Deno.serve(async (req) => {
 
     const { data: problem, error: fetchError } = await supabase
       .from('problems')
-      .select('id, author_id, project_id, projects!inner(session_count)')
+      .select('id, author_id, project_id')
       .eq('id', problemId)
       .maybeSingle()
     if (fetchError) throw fetchError
@@ -75,9 +76,9 @@ Deno.serve(async (req) => {
       })
     }
     if (refSession !== undefined && refSession !== null && refSession !== '') {
-      const sessionCount = (problem as unknown as { projects: { session_count: number } }).projects.session_count
+      // 회차는 전체 강의 순번이라 과목의 session_count를 넘을 수 있다(예: 2차 1강 = 9강).
       const sessionNumber = Number(refSession)
-      if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > sessionCount) {
+      if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > MAX_REF_SESSION) {
         return new Response(JSON.stringify({ error: 'invalid_ref_session' }), {
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },

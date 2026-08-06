@@ -119,7 +119,7 @@ export default function NewProblemPage() {
     if (draft.type === 'mcq' && draft.options.some((item) => !item.trim())) return '보기 4개를 모두 입력해 주세요.'
     if (draft.type === 'short' && !draft.shortAnswer.trim()) return '대표 정답을 입력해 주세요.'
     if (draft.type === 'bible' && (!draft.book.trim() || !draft.chapter || !draft.verse)) return '정답 성경책·장·절을 모두 입력해 주세요.'
-    if (!draft.session) return '회차를 선택해 주세요.'
+    if (!draft.session) return '회차를 입력해 주세요.'
     if (!draft.refKind) return '출처 유형(강의요약본/강의영상)을 선택해 주세요.'
     if (draft.share === 'selected' && draft.sharedUserIds.length === 0) return '공유할 신학원생을 한 명 이상 선택해 주세요.'
     return ''
@@ -170,7 +170,9 @@ export default function NewProblemPage() {
         </section>
 
         <section className="creator-section reference-section"><div className="creator-title"><span>03</span><div><h2>학습 레퍼런스</h2><p>오답을 다시 공부할 수 있도록 출처를 남겨주세요. 과목은 아래에서 선택한 과목으로 자동 기록됩니다.</p></div><mark>필수</mark></div><div className="creator-reference-grid">
-          <label className="creator-field">회차 <b>필수</b><select value={draft.session} onChange={(e) => update('session', e.target.value)} disabled={!selectedProject}><option value="">{selectedProject ? '회차 선택' : '과목을 먼저 선택하세요'}</option>{selectedProject && Array.from({ length: selectedProject.session_count }, (_, i) => i + 1).map((n) => <option key={n} value={String(n)}>{n}강</option>)}</select></label>
+          {/* 회차는 과목별 개수가 아니라 전체 강의 순번으로 적는다(2차 1강 = 9강).
+              목록으로 고르게 하면 과목의 총 회차를 넘는 번호를 넣을 수 없어 직접 입력받는다. */}
+          <label className="creator-field">회차 <b>필수</b><input inputMode="numeric" value={draft.session} onChange={(e) => update('session', e.target.value.replace(/\D/g, '').slice(0, 3))} disabled={!selectedProject} placeholder={selectedProject ? `전체 강의 순번을 숫자로 (예: 9)` : '과목을 먼저 선택하세요'}/>{selectedProject && <small>{selectedProject.title} · 등록된 총 회차 {selectedProject.session_count}강</small>}</label>
           <label className="creator-field">출처 유형 <b>필수</b><select value={draft.refKind} onChange={(e) => update('refKind', e.target.value as RefKind)}><option value="">선택</option>{refKindOptions.map((kind) => <option key={kind} value={kind}>{kind}</option>)}</select></label>
           <label className="creator-field full">세부 내용 <span>선택</span><input value={draft.refDetail} onChange={(e) => update('refDetail', e.target.value)} placeholder="예: 초반부, 12분경"/></label>
         </div></section>

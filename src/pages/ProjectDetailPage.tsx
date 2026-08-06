@@ -22,7 +22,7 @@ function downloadSampleCsv() {
 
 // ChatGPT/Claude/NotebookLM 등 어떤 생성형 AI에도 붙여넣어 쓸 수 있도록 범용으로 작성.
 // 업로더가 헤더 행을 스스로 찾으므로, 확인용 표 없이 헤더 포함 CSV 하나만 받으면 된다.
-function buildAiPrompt(projectTitle: string, sessionCount: number) {
+function buildAiPrompt(projectTitle: string) {
   return `아래 소스 자료를 바탕으로 문제 [문제 개수]개를 만들어줘. 대부분 4지선다(mcq)로 내고, 필요하면 단답형(short)이나 성경문제(bible)를 섞어줘. 이 문제들은 "${projectTitle}" 과목의 [회차]강 내용이야.
 
 결과는 다른 설명 없이 CSV 하나로만 출력해줘. 첫 줄은 아래 헤더를 그대로 쓰고, 그 아래에 문제를 한 줄씩 적어줘. 값 안에 쉼표나 큰따옴표, 줄바꿈이 들어가면 그 값을 큰따옴표로 감싸줘.
@@ -34,7 +34,7 @@ type,question,option1,option2,option3,option4,answer,keywords,ref_session,ref_ki
 - option1~4: mcq일 때만 4개 보기를 채우고, 그 외 유형은 비워둬
 - answer: mcq는 반드시 정답 보기의 번호(1~4 중 하나)만 숫자로. 보기 문구를 적으면 안 돼. short는 정답 문장, bible은 "책 장:절" 형식(예: 히브리서 11:1)
 - keywords: short 유형일 때만 정답으로 인정할 핵심 단어를 세미콜론(;)으로 구분해서 적고, 그 외 유형은 비워둬. 일부만 맞혀도 그 비율만큼 부분 점수를 받아
-- ref_session: [회차] 값을 숫자만 그대로 적어줘(예: 3). 이 과목은 1~${sessionCount}강까지만 가능해
+- ref_session: [회차] 값을 숫자만 그대로 적어줘. "9강"이 아니라 "9"처럼 숫자만. 차수와 무관하게 전체 강의 순번을 쓴다(2차 1강이 전체 9강이면 9)
 - ref_kind: "강의요약본" 또는 "강의영상" 둘 중 하나만 (다른 표현 금지)
 - ref_detail: 정답을 다시 찾을 수 있는 대략적 위치(예: "초반부", "유튜브 강의 1분 50초경", "PDF 중반부") — 알 수 있으면 적어줘
 
@@ -49,6 +49,7 @@ mcq,"천지창조는 며칠 동안 이루어졌는가?",3일,6일,7일,40일,2,,
 const VALID_PROBLEM_TYPES: Problem['type'][] = ['mcq', 'short', 'bible']
 const VALID_REF_KINDS = ['강의요약본', '강의영상']
 const REQUIRED_HEADERS = ['type', 'question', 'answer']
+const MAX_REF_SESSION = 999
 
 // 샘플 양식 2~4행의 작성 예시. 이 셀 구성과 완전히 같은 행만 예시로 보고 건너뛴다.
 // 행 위치로 판단하면(예: 무조건 4행 건너뛰기) 예시 없이 헤더+데이터만 있는 CSV에서
@@ -62,7 +63,7 @@ const EXAMPLE_ROW_KEYS = new Set(
 
 // 값이 없어야 할 자리(예: mcq가 아닌 유형의 보기 칸)까지 셀 개수는 항상 헤더와 맞아야 하며,
 // AI가 생성한 CSV에서 따옴표 누락 등으로 열이 밀리면 이 단계에서 바로 잡아낸다.
-function parseCsv(text: string, sessionCount: number) {
+function parseCsv(text: string) {
   const rows = parseCsvRows(text)
   const headerIndex = rows.findIndex((cells) => REQUIRED_HEADERS.every((h) => cells.includes(h)))
   if (headerIndex === -1) throw new Error('header')
@@ -86,12 +87,13 @@ function parseCsv(text: string, sessionCount: number) {
     if (type === 'mcq' && !['1', '2', '3', '4'].includes(value('answer').trim())) throw new Error(`row_answer_mcq:${rowNumber}`)
     const refKind = value('ref_kind')
     if (refKind && !VALID_REF_KINDS.includes(refKind)) throw new Error(`row_ref_kind:${rowNumber}`)
-    // 서버도 검사하지만, 여기서 걸러야 몇 행이 문제인지 안내할 수 있다.
+    // 회차는 과목별 개수가 아니라 전체 강의 순번으로 적는다(예: 2차 1강 = 9강).
+    // 그래서 과목의 총 회차 수로는 막지 않고 상식 범위만 확인한다.
     const refSession = value('ref_session')
     if (refSession) {
       const sessionNumber = Number(refSession)
-      if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > sessionCount) {
-        throw new Error(`row_ref_session:${rowNumber}:${refSession}:${sessionCount}`)
+      if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > MAX_REF_SESSION) {
+        throw new Error(`row_ref_session:${rowNumber}:${refSession}`)
       }
     }
     return {
@@ -129,7 +131,7 @@ function describeCsvError(err: unknown, rowNumbers: number[] = []): string {
           case 'ref_kind':
             return `${at}출처 종류(ref_kind)는 "강의요약본" 또는 "강의영상"만 가능합니다.`
           case 'ref_session':
-            return `${at}회차(ref_session)가 이 과목의 총 회차 범위를 벗어났습니다.`
+            return `${at}회차(ref_session)는 1~${MAX_REF_SESSION} 사이의 숫자만 가능합니다.`
           case 'options':
             return `${at}4지선다인데 보기 4개 중 비어 있는 칸이 있습니다.`
           default:
@@ -142,7 +144,7 @@ function describeCsvError(err: unknown, rowNumbers: number[] = []): string {
     }
   }
 
-  const [reason, rowNumber, actual, limit] = code.split(':')
+  const [reason, rowNumber, actual] = code.split(':')
   switch (reason) {
     case 'row_columns':
       return `${rowNumber}행의 열 개수가 헤더와 맞지 않습니다. 값 안에 쉼표가 있으면 큰따옴표로 감싸주세요.`
@@ -159,7 +161,7 @@ function describeCsvError(err: unknown, rowNumbers: number[] = []): string {
     case 'row_ref_kind':
       return `${rowNumber}행의 출처 종류(ref_kind)는 "강의요약본" 또는 "강의영상"만 가능합니다.`
     case 'row_ref_session':
-      return `${rowNumber}행의 회차(ref_session)가 "${actual}"인데, 이 과목은 총 ${limit}강까지입니다. 과목 설정에서 회차 수를 늘리거나 값을 고쳐주세요.`
+      return `${rowNumber}행의 회차(ref_session)가 "${actual}"입니다. 1~${MAX_REF_SESSION} 사이의 숫자만 적어주세요("9강"이 아니라 "9").`
     default:
       return 'CSV 업로드에 실패했습니다.'
   }
@@ -206,7 +208,7 @@ function ProjectDetailPage() {
 
   async function copyAiPrompt() {
     if (!project) return
-    await navigator.clipboard.writeText(buildAiPrompt(project.title, project.session_count))
+    await navigator.clipboard.writeText(buildAiPrompt(project.title))
     setPromptCopied(true)
     window.setTimeout(() => setPromptCopied(false), 2400)
   }
@@ -341,7 +343,7 @@ function ProjectDetailPage() {
           <h2>CSV로 문제 등록</h2>
           <div className="csv-block">
             <p>
-              1행은 컬럼명, 2~4행은 유형별(4지선다/단답형/성경문제) 작성 예시입니다. <strong>실제 문제는 5행부터</strong> 채워주세요.
+              1행은 컬럼명, 2~4행은 유형별(4지선다/단답형/성경문제) 작성 예시입니다. 예시는 <strong>지우고 쓰셔도 되고 그대로 두셔도</strong> 됩니다. 회차는 차수와 무관하게 <strong>전체 강의 순번</strong>(2차 1강이면 9)으로 적어주세요.
             </p>
             <div className="csv-actions">
               <button type="button" onClick={downloadSampleCsv} className="secondary-button">
@@ -351,7 +353,7 @@ function ProjectDetailPage() {
                 {promptCopied ? '복사됨 ✓' : '생성형AI용 프롬프트 복사'}
               </button>
             </div>
-            <p className="csv-ai-hint">복사한 프롬프트를 ChatGPT·Claude·NotebookLM 등에 붙여넣고 대괄호([ ]) 부분을 채운 뒤, 결과로 나온 CSV 블록을 샘플 양식 5행부터 붙여넣으세요.</p>
+            <p className="csv-ai-hint">복사한 프롬프트를 ChatGPT·Claude·NotebookLM 등에 붙여넣고 대괄호([ ]) 부분을 채운 뒤, 결과로 나온 CSV를 그대로 파일로 저장해 올리세요. 샘플 양식에 붙여넣어 쓰셔도 됩니다.</p>
             {csvMessage && <div className="notice">{csvMessage}</div>}
             <div className="file-picker">
               <label htmlFor="csvFile" className="primary-button">
@@ -371,7 +373,7 @@ function ProjectDetailPage() {
                 setCsvFileName(file.name)
                 let rowNumbers: number[] = []
                 try {
-                  const parsed = parseCsv(await readCsvFile(file), project?.session_count ?? 0)
+                  const parsed = parseCsv(await readCsvFile(file))
                   rowNumbers = parsed.map((entry) => entry.rowNumber)
                   const imported = parsed.map((entry) => entry.problem)
                   await api.bulkCreateProblems(token, projectId!, imported)

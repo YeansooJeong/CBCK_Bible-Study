@@ -5,6 +5,9 @@ import { requireUser } from '../_shared/userAuth.ts'
 const VALID_TYPES = ['mcq', 'short', 'bible']
 const VALID_REF_KINDS = ['강의요약본', '강의영상']
 const MAX_PROBLEMS_PER_PROJECT = 2000
+// 회차는 과목별 개수가 아니라 전체 강의 순번으로 적는다(예: 2차 1강 = 9강).
+// session_count는 표시용 힌트로만 두고 검증은 상식 범위로만 한다.
+const MAX_REF_SESSION = 999
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -30,7 +33,7 @@ Deno.serve(async (req) => {
       if (p.refKind && !VALID_REF_KINDS.includes(p.refKind)) reject('ref_kind')
       if (p.refSession) {
         const sessionNumber = Number(p.refSession)
-        if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > project.session_count) {
+        if (!Number.isInteger(sessionNumber) || sessionNumber < 1 || sessionNumber > MAX_REF_SESSION) {
           reject('ref_session')
         }
       }
