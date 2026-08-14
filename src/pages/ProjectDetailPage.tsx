@@ -8,13 +8,16 @@ import StudentShell, { Icon } from '../components/StudentShell'
 
 const typeLabel: Record<Problem['type'], string> = { mcq: '4지선다', short: '단답형', bible: '성경문제' }
 
-// 1행 헤더 + 2~4행에 유형별(mcq/short/bible) 작성 예시. 예시를 지우고 써도 되고
-// 그대로 두고 5행부터 채워도 된다(업로더가 예시 행을 내용으로 알아본다).
-const SAMPLE_CSV =
-  'type,question,option1,option2,option3,option4,answer,keywords,ref_session,ref_kind,ref_detail\n' +
-  'mcq,"천지창조는 며칠 동안 이루어졌는가?",3일,6일,7일,40일,2,,1,강의요약본,초반부\n' +
-  'short,"믿음의 정의를 한 문장으로 쓰시오.",,,,,"바라는 것들의 실상","실상;증거;바라는것",3,강의영상,5분경\n' +
-  'bible,"믿음장으로 불리는 본문의 위치는?",,,,,"히브리서 11:1",,3,강의요약본,후반부\n'
+// 1행 헤더, 2행부터 실제 문제. 예시 행은 두지 않는다.
+const SAMPLE_CSV = 'type,question,option1,option2,option3,option4,answer,keywords,ref_session,ref_kind,ref_detail\n'
+
+// 예시 행을 없애기 전에 받아간 샘플 양식에는 아래 세 줄이 남아 있다. 그대로 올리면
+// 예시가 실제 문제로 등록되므로, 옛 양식을 쓰는 사람을 위해 계속 건너뛴다.
+const LEGACY_EXAMPLE_ROWS = [
+  'mcq,"천지창조는 며칠 동안 이루어졌는가?",3일,6일,7일,40일,2,,1,강의요약본,초반부',
+  'short,"믿음의 정의를 한 문장으로 쓰시오.",,,,,"바라는 것들의 실상","실상;증거;바라는것",3,강의영상,5분경',
+  'bible,"믿음장으로 불리는 본문의 위치는?",,,,,"히브리서 11:1",,3,강의요약본,후반부',
+].join('\n')
 
 function downloadSampleCsv() {
   downloadCsv('cbck_problem_sample.csv', SAMPLE_CSV)
@@ -50,12 +53,11 @@ const VALID_REF_KINDS = ['강의요약본', '강의영상']
 const REQUIRED_HEADERS = ['type', 'question', 'answer']
 const MAX_REF_SESSION = 999
 
-// 샘플 양식 2~4행의 작성 예시. 이 셀 구성과 완전히 같은 행만 예시로 보고 건너뛴다.
+// 옛 샘플 양식의 예시 행. 이 셀 구성과 완전히 같은 행만 예시로 보고 건너뛴다.
 // 행 위치로 판단하면(예: 무조건 4행 건너뛰기) 예시 없이 헤더+데이터만 있는 CSV에서
 // 실제 문제 3개가 조용히 사라지므로, 내용으로 판별한다.
 const EXAMPLE_ROW_KEYS = new Set(
-  parseCsvRows(SAMPLE_CSV)
-    .slice(1)
+  parseCsvRows(LEGACY_EXAMPLE_ROWS)
     .filter((cells) => cells.some(Boolean))
     .map((cells) => cells.join('\u0000')),
 )
@@ -342,7 +344,7 @@ function ProjectDetailPage() {
           <h2>CSV로 문제 등록</h2>
           <div className="csv-block">
             <p>
-              1행은 컬럼명, 2~4행은 유형별(4지선다/단답형/성경문제) 작성 예시입니다. 예시는 <strong>지우고 쓰셔도 되고 그대로 두셔도</strong> 됩니다. 회차는 차수와 무관하게 <strong>전체 강의 순번</strong>(2차 1강이면 9)으로 적어주세요.
+              1행은 컬럼명입니다. <strong>2행부터</strong> 문제를 채워주세요. 회차는 차수와 무관하게 <strong>전체 강의 순번</strong>(2차 1강이면 9)으로 적어주세요.
             </p>
             <div className="csv-actions">
               <button type="button" onClick={downloadSampleCsv} className="secondary-button">

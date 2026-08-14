@@ -58,6 +58,8 @@ function StudentHomePage() {
   const [answer, setAnswer] = useState('')
   const [result, setResult] = useState<Verdict | null>(null)
   const [score, setScore] = useState(0)
+  // 이전 문제로 되돌아갔을 때 채점 결과를 그대로 다시 보여주기 위해 문제별로 보관한다.
+  const [answered, setAnswered] = useState<Record<string, { answer: string; verdict: Verdict; score: number; correctAnswer: string }>>({})
   const [correctAnswer, setCorrectAnswer] = useState<string | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -112,7 +114,7 @@ function StudentHomePage() {
     if (!activeSession) return
     setSessionId(activeSession.sessionId); setProblems(activeSession.problems)
     setQuestionIndex(Math.min(activeSession.resumeIndex, activeSession.problems.length - 1))
-    setAnswer(''); setResult(null); setCorrectAnswer(null); setSummary(null); setError('')
+    setAnswer(''); setResult(null); setCorrectAnswer(null); setSummary(null); setError(''); setAnswered({})
     setCommentPanelOpen(false); setCommentDraft(''); setEditingCommentId(null)
     setQuizOpen(true)
   }
@@ -249,10 +251,17 @@ function StudentHomePage() {
 
   function markFlashcard(known: boolean) {
     const card = flashCards[flashIndex]
-    if (known) setFlashKnown((current) => new Set(current).add(card.id))
-    else setFlashUnknown((current) => new Set(current).add(card.id))
+    // 이전 카드로 돌아가 다시 표시할 수 있으므로, 한쪽에 넣을 때 반대쪽에서는 반드시 빼야
+    // 같은 카드가 양쪽에 모두 남아 집계가 어긋나지 않는다.
+    setFlashKnown((current) => { const next = new Set(current); if (known) next.add(card.id); else next.delete(card.id); return next })
+    setFlashUnknown((current) => { const next = new Set(current); if (known) next.delete(card.id); else next.add(card.id); return next })
     if (flashIndex < flashCards.length - 1) { setFlashIndex((value) => value + 1); setFlashRevealed(false) }
     else setFlashDone(true)
+  }
+
+  // 이미 본 카드로 돌아가는 것이므로 정답을 펼친 상태로 보여준다.
+  function prevFlashcard() {
+    if (flashIndex > 0) { setFlashIndex((value) => value - 1); setFlashRevealed(true) }
   }
 
   function restartUnknownFlashcards() {
@@ -294,7 +303,7 @@ function StudentHomePage() {
         count,
         types: selectedTypes,
       })
-      setSessionId(data.sessionId); setProblems(data.problems); setQuestionIndex(0); setAnswer(''); setResult(null); setCorrectAnswer(null)
+      setSessionId(data.sessionId); setProblems(data.problems); setQuestionIndex(0); setAnswer(''); setResult(null); setCorrectAnswer(null); setAnswered({})
       setCommentPanelOpen(false); setCommentDraft(''); setEditingCommentId(null)
     } catch {
       const typeNames = problemTypeOptions.filter((option) => selectedTypes.includes(option.value)).map((option) => option.label).join('·')
@@ -318,9 +327,12 @@ function StudentHomePage() {
       const data = await api.submitAnswer(token, { sessionId, problemId: question.id, userAnswer: answer })
       // 채점 함수(submit-answer)는 프론트와 배포 경로가 달라 잠시 구버전 응답이 올 수 있다.
       // verdict가 없으면 기존 isCorrect로 판정을 대신한다.
-      setResult(data.verdict ?? (data.isCorrect ? 'correct' : 'wrong'))
-      setScore(data.score ?? (data.isCorrect ? 1 : 0))
+      const verdict = data.verdict ?? (data.isCorrect ? 'correct' : 'wrong')
+      const gained = data.score ?? (data.isCorrect ? 1 : 0)
+      setResult(verdict)
+      setScore(gained)
       setCorrectAnswer(data.answer)
+      setAnswered((current) => ({ ...current, [question.id]: { answer, verdict, score: gained, correctAnswer: data.answer } }))
       loadComments(question.id)
     }
     catch { setError('답안 제출에 실패했습니다.') }
@@ -347,9 +359,25 @@ function StudentHomePage() {
     await loadComments(question.id)
   }
 
+  // 해당 순번의 문제로 이동하면서, 이미 푼 문제면 그때의 답안과 채점 결과를 되살린다.
+  function goToQuestion(index: number) {
+    const target = problems[index]
+    const saved = target ? answered[target.id] : undefined
+    setQuestionIndex(index)
+    setAnswer(saved?.answer ?? '')
+    setResult(saved?.verdict ?? null)
+    setScore(saved?.score ?? 0)
+    setCorrectAnswer(saved?.correctAnswer ?? null)
+    setCommentPanelOpen(false); setCommentDraft(''); setEditingCommentId(null)
+  }
+
+  function prevQuestion() {
+    if (questionIndex > 0) goToQuestion(questionIndex - 1)
+  }
+
   async function nextQuestion() {
     setCommentPanelOpen(false); setCommentDraft(''); setEditingCommentId(null)
-    if (questionIndex < problems.length - 1) { setQuestionIndex((value) => value + 1); setAnswer(''); setResult(null); setCorrectAnswer(null); return }
+    if (questionIndex < problems.length - 1) { goToQuestion(questionIndex + 1); return }
     const token = studentSession.get(); if (!token || !sessionId) return
     setSubmitting(true)
     try {
@@ -444,7 +472,10 @@ function StudentHomePage() {
           <div className="comment-compose"><input className="field" placeholder="문제에 댓글 남기기" value={commentDraft} onChange={(e) => setCommentDraft(e.target.value)} /><button type="button" className="secondary-button" onClick={submitComment}>작성</button></div>
         </div>}
       </div>}
-      {result === null ? <button className="primary-button wide" disabled={!answer.trim() || submitting} onClick={submitAnswer}>답안 확인 <Icon name="arrow"/></button> : <button className="primary-button wide" disabled={submitting} onClick={nextQuestion}>{questionIndex === problems.length - 1 ? '결과 보기' : '다음 문제'} <Icon name="arrow"/></button>}
+      <div className="quiz-nav">
+        {questionIndex > 0 && <button type="button" className="secondary-button quiz-back" disabled={submitting} onClick={prevQuestion}>← 이전 문제</button>}
+        {result === null ? <button className="primary-button wide" disabled={!answer.trim() || submitting} onClick={submitAnswer}>답안 확인 <Icon name="arrow"/></button> : <button className="primary-button wide" disabled={submitting} onClick={nextQuestion}>{questionIndex === problems.length - 1 ? '결과 보기' : '다음 문제'} <Icon name="arrow"/></button>}
+      </div>
     </div>}
   </section></div>}
 
@@ -467,6 +498,7 @@ function StudentHomePage() {
         {flashRevealed && <div className="flashcard-reveal"><strong>{flashCard.options ? (flashCard.options[flashCard.answer] ?? flashCard.answer) : flashCard.type === 'bible' ? formatBibleAnswer(flashCard.answer) : flashCard.answer}</strong><span>정답</span><p className="flashcard-reference"><b>출처</b> {formatReference(flashCard)}</p></div>}
       </div>
       {!flashRevealed ? <button className="primary-button wide" onClick={() => setFlashRevealed(true)}>정답 보기 <Icon name="arrow" /></button> : <div className="flashcard-choices"><button type="button" className="unknown" onClick={() => markFlashcard(false)}>몰랐어요</button><button type="button" className="know" onClick={() => markFlashcard(true)}>알고 있었어요</button></div>}
+      {flashIndex > 0 && <button type="button" className="secondary-button flash-back" onClick={prevFlashcard}>← 이전 카드</button>}
     </div>}
   </section></div>}
   </StudentShell>
