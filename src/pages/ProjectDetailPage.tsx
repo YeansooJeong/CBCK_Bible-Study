@@ -22,29 +22,28 @@ function downloadSampleCsv() {
 
 // ChatGPT/Claude/NotebookLM 등 어떤 생성형 AI에도 붙여넣어 쓸 수 있도록 범용으로 작성.
 // 업로더가 헤더 행을 스스로 찾으므로, 확인용 표 없이 헤더 포함 CSV 하나만 받으면 된다.
-function buildAiPrompt(projectTitle: string) {
-  return `아래 소스 자료를 바탕으로 문제 [문제 개수]개를 만들어줘. 대부분 4지선다(mcq)로 내고, 필요하면 단답형(short)이나 성경문제(bible)를 섞어줘. 이 문제들은 "${projectTitle}" 과목의 [회차]강 내용이야.
+const AI_PROMPT = `단답형(short)과 성경문제(bible)를 섞어서 문제를 내줘. 각 강의별로 10~12문제씩 출제해주고, 단답형과 성경문제의 비율은 7:3 정도로 맞춰줘. 한 번에 올릴 수 있는 최대가 100문제라서 전체 합계가 100문제를 넘으면 안 돼. 강의 수가 많아 넘칠 것 같으면 강의를 나눠서 CSV를 여러 개로 따로 출력해줘.
 
 결과는 다른 설명 없이 CSV 하나로만 출력해줘. 첫 줄은 아래 헤더를 그대로 쓰고, 그 아래에 문제를 한 줄씩 적어줘. 값 안에 쉼표나 큰따옴표, 줄바꿈이 들어가면 그 값을 큰따옴표로 감싸줘.
 type,question,option1,option2,option3,option4,answer,keywords,ref_session,ref_kind,ref_detail
 
 각 열 작성 규칙:
-- type: mcq(객관식) / short(단답형) / bible(성경문제) 중 하나
+- type: short(단답형) / bible(성경문제) 중 하나. 객관식(mcq)은 출제하지 마
 - question: 문제 본문
-- option1~4: mcq일 때만 4개 보기를 채우고, 그 외 유형은 비워둬
-- answer: mcq는 반드시 정답 보기의 번호(1~4 중 하나)만 숫자로. 보기 문구를 적으면 안 돼. short는 정답 문장, bible은 "책 장:절" 형식(예: 히브리서 11:1)
-- keywords: short 유형일 때만 정답으로 인정할 핵심 단어를 세미콜론(;)으로 구분해서 적고, 그 외 유형은 비워둬. 일부만 맞혀도 그 비율만큼 부분 점수를 받아
-- ref_session: [회차] 값을 숫자만 그대로 적어줘. "9강"이 아니라 "9"처럼 숫자만. 차수와 무관하게 전체 강의 순번을 쓴다(2차 1강이 전체 9강이면 9)
+- option1~4: 항상 비워둬. 객관식에만 쓰는 칸이라 지금은 쓸 일이 없지만, 나중에 쓸 수 있으니 칸(쉼표)은 그대로 남겨줘
+- answer: short는 정답 문장, bible은 "책 장:절" 형식(예: 히브리서 11:1)
+- keywords: short 유형일 때만 정답으로 인정할 핵심 단어를 세미콜론(;)으로 구분해서 적고, bible은 비워둬. 일부만 맞혀도 그 비율만큼 부분 점수를 받아
+- ref_session: 그 문제가 나온 강의의 순번을 숫자만 적어줘. "9강"이 아니라 "9"처럼 숫자만. 차수와 무관하게 전체 강의 순번을 쓴다(2차 1강이 전체 9강이면 9)
 - ref_kind: "강의요약본" 또는 "강의영상" 둘 중 하나만 (다른 표현 금지)
-- ref_detail: 정답을 다시 찾을 수 있는 대략적 위치(예: "초반부", "유튜브 강의 1분 50초경", "PDF 중반부") — 알 수 있으면 적어줘
+- ref_detail: 정답에 대한 소스의 근거위치와 함께 이것이 왜 정답인지에 대한 개략적인 설명을 적어줘. Notebook LM 퀴즈에서와 같이 짧은 형태의 코멘트로 알려주면 돼.
 
 작성 예시:
-mcq,"천지창조는 며칠 동안 이루어졌는가?",3일,6일,7일,40일,2,,3,강의요약본,초반부
+short,"믿음이란 무엇이라고 정의하는가?",,,,,"바라는 것들의 실상","실상;증거;바라는것",9,강의요약본,"강의 초반부. 히브리서 11장 1절을 인용해 믿음을 '바라는 것들의 실상'으로 정의한다."
+bible,"믿음장으로 불리는 본문의 위치는 어디인가?",,,,,히브리서 11:1,,9,강의영상,"영상 12분경. 히브리서 11장을 믿음장이라 부르는 이유를 설명한다."
 
 정답은 반드시 아래 소스 자료 안에서 실제로 확인 가능한 내용으로만 출제해줘.
 
 [여기에 소스 자료(강의 스크립트, PDF 텍스트 등)를 붙여넣으세요]`
-}
 
 const VALID_PROBLEM_TYPES: Problem['type'][] = ['mcq', 'short', 'bible']
 const VALID_REF_KINDS = ['강의요약본', '강의영상']
@@ -208,7 +207,7 @@ function ProjectDetailPage() {
 
   async function copyAiPrompt() {
     if (!project) return
-    await navigator.clipboard.writeText(buildAiPrompt(project.title))
+    await navigator.clipboard.writeText(AI_PROMPT)
     setPromptCopied(true)
     window.setTimeout(() => setPromptCopied(false), 2400)
   }
