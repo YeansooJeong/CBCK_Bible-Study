@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { Icon } from '../components/StudentShell'
 import { HelpButton } from '../components/HelpModal'
 import { api, ApiError } from '../lib/api'
@@ -41,10 +41,16 @@ function StudentAuthPage() {
     }
   }, [navigate])
 
+  const location = useLocation()
   const [step, setStep] = useState<Step>('phone')
   const [phone, setPhone] = useState('')
   const [error, setError] = useState<string | null>(null)
-  const [notice, setNotice] = useState<string | null>(null)
+  // 세션 만료로 밀려난 경우, 왜 다시 로그인해야 하는지 알려준다.
+  const [notice, setNotice] = useState<string | null>(
+    (location.state as { sessionExpired?: boolean } | null)?.sessionExpired
+      ? '로그인이 만료되어 자동으로 로그아웃되었습니다. 다시 로그인해 주세요.'
+      : null,
+  )
   const [loading, setLoading] = useState(false)
 
   const [password, setPassword] = useState('')

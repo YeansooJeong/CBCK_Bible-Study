@@ -1,6 +1,47 @@
 const FUNCTIONS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1`
 const ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+// 인앱 브라우저나 약한 신호에서 응답이 오지 않고 매달리는 것을 막는다.
+const REQUEST_TIMEOUT_MS = 15000
+// 응답 자체를 못 받은 경우에만 다시 시도한다. 서버가 응답했다면(ApiError) 재시도는 의미가 없다.
+const RETRY_DELAYS_MS = [600, 1500]
+
+/** 서버 응답을 아예 받지 못한 경우(연결 끊김·타임아웃). ApiError와 구분해 안내 문구를 달리한다. */
+export class NetworkError extends Error {
+  constructor() {
+    super('network_error')
+  }
+}
+
+export class ApiError extends Error {
+  status: number
+  // 서버가 오류와 함께 내려준 부가 정보(예: 몇 번째 문제가 왜 거절됐는지)
+  details?: Record<string, unknown>
+  constructor(code: string, status: number, details?: Record<string, unknown>) {
+    super(code)
+    this.status = status
+    this.details = details
+  }
+}
+
+// 세션 만료(401)를 앱 전체에서 한 곳으로 모아 처리하기 위한 통로.
+// 만료된 토큰이 localStorage에 남아 있으면 화면마다 오류만 뜨고 로그인으로 갈 방법이 없어진다.
+type UnauthorizedKind = 'user' | 'admin'
+let unauthorizedHandler: ((kind: UnauthorizedKind) => void) | null = null
+export function setUnauthorizedHandler(handler: ((kind: UnauthorizedKind) => void) | null) {
+  unauthorizedHandler = handler
+}
+
+/** 화면에 그대로 띄울 수 있는 오류 문구. 원인별로 사용자가 할 수 있는 행동이 다르다. */
+export function describeApiError(err: unknown, fallback: string): string {
+  if (err instanceof NetworkError) return '네트워크 연결이 불안정합니다. 연결을 확인한 뒤 다시 시도해 주세요.'
+  if (err instanceof ApiError && err.status === 401) return '로그인이 만료되었습니다. 다시 로그인해 주세요.'
+  if (err instanceof ApiError && err.status >= 500) return '서버에 일시적인 문제가 있습니다. 잠시 후 다시 시도해 주세요.'
+  return fallback
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 async function callFunction<T>(
   name: string,
   options: { body?: unknown; adminToken?: string; userToken?: string; method?: string } = {},
@@ -12,25 +53,43 @@ async function callFunction<T>(
   if (options.adminToken) headers['x-admin-token'] = options.adminToken
   if (options.userToken) headers['x-user-token'] = options.userToken
 
-  const res = await fetch(`${FUNCTIONS_URL}/${name}`, {
-    method: options.method ?? (options.body ? 'POST' : 'GET'),
-    headers,
-    body: options.body ? JSON.stringify(options.body) : undefined,
-  })
+  const method = options.method ?? (options.body ? 'POST' : 'GET')
+  // POST는 서버에 이미 도달했을 수 있어 다시 보내면 중복 생성될 위험이 있다. 조회(GET)만 재시도한다.
+  const retryable = method === 'GET'
 
-  const data = await res.json()
-  if (!res.ok) throw new ApiError(data.error ?? 'unknown_error', res.status, data)
-  return data as T
-}
+  const attempt = async (): Promise<T> => {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS)
+    let res: Response
+    try {
+      res = await fetch(`${FUNCTIONS_URL}/${name}`, {
+        method,
+        headers,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+        signal: controller.signal,
+      })
+    } catch {
+      // fetch가 던지는 건 연결 실패이거나 타임아웃(abort)이다.
+      throw new NetworkError()
+    } finally {
+      clearTimeout(timer)
+    }
 
-export class ApiError extends Error {
-  status: number
-  // 서버가 오류와 함께 내려준 부가 정보(예: 몇 번째 문제가 왜 거절됐는지)
-  details?: Record<string, unknown>
-  constructor(code: string, status: number, details?: Record<string, unknown>) {
-    super(code)
-    this.status = status
-    this.details = details
+    const data = await res.json().catch(() => ({}))
+    if (res.status === 401 && (options.userToken || options.adminToken)) {
+      unauthorizedHandler?.(options.adminToken ? 'admin' : 'user')
+    }
+    if (!res.ok) throw new ApiError(data.error ?? 'unknown_error', res.status, data)
+    return data as T
+  }
+
+  for (let i = 0; ; i++) {
+    try {
+      return await attempt()
+    } catch (err) {
+      if (!(err instanceof NetworkError) || !retryable || i >= RETRY_DELAYS_MS.length) throw err
+      await sleep(RETRY_DELAYS_MS[i])
+    }
   }
 }
 

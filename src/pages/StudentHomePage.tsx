@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import StudentShell, { Icon } from '../components/StudentShell'
-import { api, type Problem, type ProblemComment, type ProblemType, type Project } from '../lib/api'
+import { api, describeApiError, type Problem, type ProblemComment, type ProblemType, type Project } from '../lib/api'
 import { studentSession, type StudentUser } from '../lib/session'
 import { formatBibleAnswer } from '../lib/format'
 import { NewContentNotice } from '../components/NewContentNotice'
@@ -101,7 +101,7 @@ function StudentHomePage() {
       .then(([historyResult, projectResult, activeResult]) => {
         setHistory(historyResult.sessions); setProjects(projectResult.projects); setActiveSession(activeResult.session)
       })
-      .catch(() => setError('학습 정보를 불러오지 못했습니다.'))
+      .catch((err) => setError(describeApiError(err, '학습 정보를 불러오지 못했습니다.')))
       .finally(() => setLoading(false))
   }, [navigate, user])
 
@@ -335,7 +335,7 @@ function StudentHomePage() {
       setAnswered((current) => ({ ...current, [question.id]: { answer, verdict, score: gained, correctAnswer: data.answer } }))
       loadComments(question.id)
     }
-    catch { setError('답안 제출에 실패했습니다.') }
+    catch (err) { setError(describeApiError(err, '답안 제출에 실패했습니다.')) }
     finally { setSubmitting(false) }
   }
 
@@ -384,7 +384,7 @@ function StudentHomePage() {
       const data = await api.finishQuizSession(token, sessionId); setSummary(data)
       setHistory((await api.quizHistory(token)).sessions)
       setActiveSession(null)
-    } catch { setError('학습 결과를 불러오지 못했습니다.') }
+    } catch (err) { setError(describeApiError(err, '학습 결과를 불러오지 못했습니다.')) }
     finally { setSubmitting(false) }
   }
 

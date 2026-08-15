@@ -124,6 +124,9 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .quiz-nav .primary-button.wide { flex:1; width:auto; margin-top:0; }
 /* 플래시카드 선택지는 모바일에서 줄바꿈되므로 되돌리기를 같은 줄에 넣지 않고 아래 줄에 둔다. */
 .flash-back { width:100%; margin-top:10px; }
+/* 오류 문구와 "다시 시도" 버튼을 한 카드에 담는다. 좁은 화면에서는 버튼이 아래로 내려간다. */
+.retry-notice { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; }
+.retry-notice .secondary-button { min-height:38px; padding:0 14px; font-size:13px; background:#fff; }
 .flashcard-choices { display:flex; gap:10px; margin-top:22px; }
 .flashcard-choices button { flex:1; min-height:52px; border-radius:10px; font-weight:700; cursor:pointer; }
 .flashcard-choices .know { border:1px solid #9dc2a4; background:#e8f3e9; color:#22563b; }

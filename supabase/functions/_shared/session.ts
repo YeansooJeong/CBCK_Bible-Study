@@ -26,10 +26,12 @@ export interface SessionPayload {
   role?: 'admin' | 'general_admin'
 }
 
+// 주 1회 학습하는 사람에게 7일은 너무 짧아 자주 만료됐다. 학습자 세션은 30일로 둔다.
+// (관리자 세션은 admin-login에서 8시간으로 따로 지정한다.)
 export async function createSessionToken(
   userId: string,
   secret: string,
-  ttlSeconds = 60 * 60 * 24 * 7,
+  ttlSeconds = 60 * 60 * 24 * 30,
   role?: 'admin' | 'general_admin',
 ): Promise<string> {
   const payload: SessionPayload = { sub: userId, exp: Math.floor(Date.now() / 1000) + ttlSeconds, role }
