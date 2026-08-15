@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { studentSession } from '../lib/session'
 import { HelpButton } from './HelpModal'
 import churchLogo from '../assets/church-logo.png'
+import { PrivacyNotice } from './PrivacyNotice'
 
 export function Icon({ name, size = 22 }: { name: 'book' | 'file' | 'users' | 'plus' | 'arrow' | 'upload'; size?: number }) {
   const paths = {
@@ -58,5 +59,6 @@ export default function StudentShell({ children }: { children: ReactNode }) {
       </div>
     </header>
     {children}
+    <PrivacyNotice />
   </div>
 }

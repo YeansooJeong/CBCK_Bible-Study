@@ -77,7 +77,8 @@ Deno.serve(async (req) => {
 
     await supabase
       .from('users')
-      .update({ failed_attempts: 0, locked_until: null })
+      // 보관기간(최종 접속 후 1년) 계산 기준이 되므로 로그인 시 갱신한다.
+      .update({ failed_attempts: 0, locked_until: null, last_seen_at: new Date().toISOString() })
       .eq('id', user.id)
 
     const token = await createSessionToken(

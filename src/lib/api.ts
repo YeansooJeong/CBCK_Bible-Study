@@ -116,6 +116,8 @@ export interface ModeratedProblem {
   projectId: string
   projectTitle: string
   ownerName: string
+  // 작성자의 개인정보가 파기된 경우 true. 이름은 관리 목적으로 보존한 값이다.
+  ownerPurged?: boolean
   type: ProblemType
   question: string
   options: Record<string, string> | null
@@ -302,7 +304,15 @@ export const api = {
       // 출제할 문제 유형. 비우면 전체 유형에서 출제한다.
       types?: ProblemType[]
     },
-  ) => callFunction<{ success: true; sessionId: string; problems: Problem[] }>('start-quiz-session', { userToken, body: payload }),
+  ) => callFunction<{
+    success: true
+    sessionId: string
+    problems: Problem[]
+    // 안 풀어본 문제 / 다시 나온 문제 구성. 구버전 서버에서는 내려오지 않는다.
+    newCount?: number
+    reviewCount?: number
+    remainingNew?: number
+  }>('start-quiz-session', { userToken, body: payload }),
 
   listQuizScopes: (userToken: string, projectId?: string) =>
     callFunction<{ courses: Array<{ course: string; sessions: string[] }> }>(
@@ -334,6 +344,9 @@ export const api = {
 
   quizHistory: (userToken: string) =>
     callFunction<{ sessions: Array<{ id: string; started_at: string; total: number; correct: number }> }>('quiz-history', { userToken, method: 'GET' }),
+
+  withdrawAccount: (userToken: string, payload: { reason: string; reasonDetail?: string }) =>
+    callFunction<{ success: true }>('withdraw-account', { userToken, body: payload }),
 
   deleteQuizHistory: (userToken: string) =>
     callFunction<{ success: true; deleted: number }>('delete-quiz-history', { userToken, body: {} }),

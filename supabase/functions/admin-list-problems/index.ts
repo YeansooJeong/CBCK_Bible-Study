@@ -30,16 +30,19 @@ Deno.serve(async (req) => {
     if (error) throw error
 
     const authorIds = Array.from(new Set((problems ?? []).map((p: any) => p.author_id).filter(Boolean)))
+    // 개인정보가 파기된 계정은 display_name이 비므로, 관리자가 작성자를 확인할 수 있도록
+    // 보존해 둔 이름(name)으로 대체하고 파기 여부를 함께 내려준다.
     const { data: authors } = authorIds.length
-      ? await supabase.from('users').select('id, display_name').in('id', authorIds)
-      : { data: [] as Array<{ id: string; display_name: string }> }
-    const authorNameById = new Map((authors ?? []).map((u) => [u.id, u.display_name]))
+      ? await supabase.from('users').select('id, display_name, name, purged_at').in('id', authorIds)
+      : { data: [] as Array<{ id: string; display_name: string | null; name: string | null; purged_at: string | null }> }
+    const authorById = new Map((authors ?? []).map((u) => [u.id, u]))
 
     const rows = (problems ?? []).map((p: any) => ({
       id: p.id,
       projectId: p.project_id,
       projectTitle: p.projects?.title ?? '',
-      ownerName: authorNameById.get(p.author_id) ?? '',
+      ownerName: authorById.get(p.author_id)?.display_name || authorById.get(p.author_id)?.name || '',
+      ownerPurged: Boolean(authorById.get(p.author_id)?.purged_at),
       type: p.type,
       question: p.question,
       options: p.options,

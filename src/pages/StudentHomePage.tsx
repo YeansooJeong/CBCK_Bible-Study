@@ -20,6 +20,8 @@ const problemTypeOptions: Array<{ value: ProblemType; label: string }> = [
 ]
 const allProblemTypes = problemTypeOptions.map((option) => option.value)
 
+const withdrawReasons = ['신학원 과정 이수 중단', '더 이상 이용하지 않음', '개인정보가 걱정됨', '사용이 불편함', '기타']
+
 // 정답과 함께 보여주는 출처 문구. 퀴즈 채점 피드백과 플래시카드가 같은 형식을 쓴다.
 function formatReference(problem: Problem): string {
   return [problem.ref_course, problem.ref_session ? `${problem.ref_session}강` : '', problem.ref_kind, problem.ref_detail]
@@ -60,6 +62,8 @@ function StudentHomePage() {
   const [score, setScore] = useState(0)
   // 이전 문제로 되돌아갔을 때 채점 결과를 그대로 다시 보여주기 위해 문제별로 보관한다.
   const [answered, setAnswered] = useState<Record<string, { answer: string; verdict: Verdict; score: number; correctAnswer: string }>>({})
+  // 이번 회차가 복습으로 채워졌을 때만 뜨는 안내
+  const [quizNotice, setQuizNotice] = useState('')
   const [correctAnswer, setCorrectAnswer] = useState<string | null>(null)
   const [summary, setSummary] = useState<Summary | null>(null)
   const [submitting, setSubmitting] = useState(false)
@@ -77,6 +81,12 @@ function StudentHomePage() {
   const [weeklySettingsOpen, setWeeklySettingsOpen] = useState(false)
   const [historyDeleting, setHistoryDeleting] = useState(false)
   const [historyDeleteMessage, setHistoryDeleteMessage] = useState('')
+  // 회원 탈퇴: 사유를 받고 개인정보를 즉시 파기한다.
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
+  const [withdrawReason, setWithdrawReason] = useState('')
+  const [withdrawDetail, setWithdrawDetail] = useState('')
+  const [withdrawing, setWithdrawing] = useState(false)
+  const [withdrawError, setWithdrawError] = useState('')
 
   const [flashOpen, setFlashOpen] = useState(false)
   const [flashProject, setFlashProject] = useState('')
@@ -109,6 +119,20 @@ function StudentHomePage() {
     const token = studentSession.get()
     if (token) api.listBookmarkedProblems(token).then(({ problems: rows }) => { setBookmarkedProblems(rows); setBookmarkedIds(new Set(rows.map((row) => row.id))) }).catch(() => undefined)
   }, [])
+
+  async function submitWithdrawal() {
+    const token = studentSession.get(); if (!token) return navigate('/login')
+    if (!withdrawReason) { setWithdrawError('탈퇴 사유를 선택해 주세요.'); return }
+    if (withdrawReason === '기타' && !withdrawDetail.trim()) { setWithdrawError('기타 사유를 적어 주세요.'); return }
+    setWithdrawing(true); setWithdrawError('')
+    try {
+      await api.withdrawAccount(token, { reason: withdrawReason, reasonDetail: withdrawDetail.trim() || undefined })
+      studentSession.clear()
+      navigate('/login', { replace: true, state: { withdrawn: true } })
+    } catch (err) {
+      setWithdrawError(describeApiError(err, '탈퇴 처리에 실패했습니다. 잠시 후 다시 시도해 주세요.'))
+    } finally { setWithdrawing(false) }
+  }
 
   function resumeQuiz() {
     if (!activeSession) return
@@ -305,6 +329,11 @@ function StudentHomePage() {
       })
       setSessionId(data.sessionId); setProblems(data.problems); setQuestionIndex(0); setAnswer(''); setResult(null); setCorrectAnswer(null); setAnswered({})
       setCommentPanelOpen(false); setCommentDraft(''); setEditingCommentId(null)
+      // 안 풀어본 문제가 바닥나 이미 푼 문제가 섞인 경우에만 알려준다.
+      const review = data.reviewCount ?? 0
+      setQuizNotice(review > 0
+        ? (data.newCount ? `새 문제 ${data.newCount}개를 다 담고, 남은 ${review}개는 전에 푼 문제로 채웠어요.` : '이 범위의 문제를 모두 풀어보셨어요. 지금부터는 무작위로 다시 출제됩니다.')
+        : '')
     } catch {
       const typeNames = problemTypeOptions.filter((option) => selectedTypes.includes(option.value)).map((option) => option.label).join('·')
       setError(selectedTypes.length < allProblemTypes.length
@@ -413,6 +442,9 @@ function StudentHomePage() {
             <p>학습 기록</p>
             {historyDeleteMessage && <span className="weekly-settings-note">{historyDeleteMessage}</span>}
             <button type="button" className="weekly-settings-danger" disabled={historyDeleting} onClick={handleDeleteHistory}>{historyDeleting ? '삭제하는 중…' : '학습 기록 전체 삭제'}</button>
+            <hr className="weekly-settings-divider" />
+            <p>계정</p>
+            <button type="button" className="weekly-settings-danger" onClick={() => { setWeeklySettingsOpen(false); setWithdrawReason(''); setWithdrawDetail(''); setWithdrawError(''); setWithdrawOpen(true) }}>회원 탈퇴</button>
           </div>}
         </div>
         <div className="progress-ring" style={{ '--progress': `${weekly.progress}%` } as React.CSSProperties}><div><strong>{weekly.progress}</strong><span>%</span></div></div>
@@ -435,6 +467,26 @@ function StudentHomePage() {
     <section className="quick-card"><div><p className="eyebrow">문제 만들기</p><h2>배운 내용을 직접 문제로 남겨보세요.</h2><p>객관식·단답형·성경문제를 만들고 동료들과 공유할 수 있어요.</p></div><Link className="secondary-button" to="/problems/new"><Icon name="plus"/> 새 문제 만들기</Link></section>
   </main>
 
+  {withdrawOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && !withdrawing && setWithdrawOpen(false)}>
+    <section className="quiz-modal withdraw-modal" role="dialog" aria-modal="true" aria-labelledby="withdraw-title">
+      <button className="modal-close" aria-label="닫기" disabled={withdrawing} onClick={() => setWithdrawOpen(false)}>×</button>
+      <p className="eyebrow">회원 탈퇴</p>
+      <h2 id="withdraw-title">정말 탈퇴하시겠어요?</h2>
+      <p>탈퇴하시면 이름·휴대전화번호 등 개인정보와 학습 기록이 <strong>즉시 파기</strong>되며 되돌릴 수 없습니다.</p>
+      <p>그동안 만들어 주신 문제는 다른 분들의 학습을 위해 남습니다.</p>
+      <label>탈퇴 사유<select value={withdrawReason} onChange={(event) => { setWithdrawReason(event.target.value); setWithdrawError('') }} disabled={withdrawing}>
+        <option value="">사유를 선택해 주세요</option>
+        {withdrawReasons.map((reason) => <option key={reason} value={reason}>{reason}</option>)}
+      </select></label>
+      <label>{withdrawReason === '기타' ? '사유를 적어 주세요' : '남기실 말씀 (선택)'}<textarea value={withdrawDetail} maxLength={300} rows={3} disabled={withdrawing} onChange={(event) => { setWithdrawDetail(event.target.value); setWithdrawError('') }} placeholder="서비스 개선에 참고하겠습니다." /></label>
+      {withdrawError && <div className="notice error">{withdrawError}</div>}
+      <div className="result-actions">
+        <button type="button" className="secondary-button" disabled={withdrawing} onClick={() => setWithdrawOpen(false)}>취소</button>
+        <button type="button" className="weekly-settings-danger" disabled={withdrawing} onClick={submitWithdrawal}>{withdrawing ? '처리하는 중…' : '탈퇴하기'}</button>
+      </div>
+    </section>
+  </div>}
+
   {quizOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && closeQuiz()}><section className="quiz-modal" role="dialog" aria-modal="true" aria-labelledby="quiz-title"><button className="modal-close" aria-label="닫기" onClick={closeQuiz}>×</button>
     {!sessionId ? <div className="quiz-setup"><span className="modal-bookmark"/><p className="eyebrow">맞춤 학습</p><h2 id="quiz-title">오늘은 어떤 문제를 복습할까요?</h2><p>모든 공유 문제에서 골고루 출제하거나, 원하는 과목과 회차를 선택할 수 있어요.</p>
       {error && <div className="notice error">{error}</div>}
@@ -453,6 +505,7 @@ function StudentHomePage() {
       </div>}
       <div className="result-actions"><button className="secondary-button" onClick={() => openQuiz(selectedProject)}>다시 풀기</button><button className="primary-button" onClick={closeQuiz}>학습 마치기</button></div></div>
     : question && <div className="quiz-body"><button type="button" className={`bookmark-fab${bookmarkedIds.has(question.id) ? ' active' : ''}`} aria-label={bookmarkedIds.has(question.id) ? '북마크 해제' : '북마크에 추가'} aria-pressed={bookmarkedIds.has(question.id)} onClick={toggleBookmark}>★</button><div className="quiz-top"><div><p className="eyebrow">{question.ref_course || '문제은행'} {question.ref_session ? `${question.ref_session}강` : ''}</p><span>{questionIndex + 1} / {problems.length}</span></div><div className="quiz-progress"><span style={{ width: `${(questionIndex + 1) / problems.length * 100}%` }}/></div></div><h2 id="quiz-title">{question.question}</h2>
+      {quizNotice && questionIndex === 0 && <div className="notice quiz-review-notice">{quizNotice}</div>}
       {question.options ? <div className="answer-options">{Object.entries(question.options).map(([key, value]) => <button key={key} disabled={result !== null} className={answer === key ? 'selected' : ''} onClick={() => setAnswer(key)}><span>{key}</span>{value}</button>)}</div> : <input className="answer-input" value={answer} disabled={result !== null} onChange={(event) => setAnswer(event.target.value)} placeholder={question.type === 'bible' ? '예: 히브리서 11:1' : '답안을 입력하세요'} />}
       {result !== null && <div className={`feedback ${result}`}><strong>{result === 'correct' ? '정답이에요.' : result === 'partial' ? `거의 맞았어요. 부분 점수 ${Math.round(score * 100)}%를 받았어요.` : '한 번 더 기억해 주세요.'}</strong>{result !== 'correct' && correctAnswer && <p className="feedback-answer">정답: {question.options ? (question.options[correctAnswer] ?? correctAnswer) : question.type === 'bible' ? formatBibleAnswer(correctAnswer) : correctAnswer}</p>}<p>{formatReference(question)}</p></div>}
       {result !== null && <div className="comment-block">

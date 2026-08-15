@@ -5,6 +5,20 @@ import { fetchVisibleProblems } from '../_shared/visibleProblems.ts'
 
 const PROBLEM_TYPES = ['mcq', 'short', 'bible']
 
+// 출제 후보를 다루는 데 필요한 최소 형태만 둔다.
+interface Problem { id: string; type: string; ref_course?: string | null; ref_session?: string | null }
+
+// sort(() => Math.random() - 0.5)는 비교 결과가 일관되지 않아 정렬이 한쪽으로 치우친다.
+// 출제 순서가 고르게 섞이도록 Fisher-Yates로 섞는다.
+function shuffle<T>(items: T[]): T[] {
+  const result = [...items]
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[result[i], result[j]] = [result[j], result[i]]
+  }
+  return result
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {
@@ -27,15 +41,39 @@ Deno.serve(async (req) => {
       const ids = new Set((bookmarks ?? []).map((row) => row.problem_id))
       filtered = filtered.filter((problem: any) => ids.has(problem.id))
     }
-    const selected = filtered.sort(() => Math.random() - 0.5).slice(0, count)
-    if (!selected.length) return json({ error: 'no_available_problems' }, 400)
+    if (!filtered.length) return json({ error: 'no_available_problems' }, 400)
+
+    // 전에 풀어본 문제는 뒤로 미뤄, 안 풀어본 문제부터 출제한다.
+    // 위에서 유형·과목·회차·북마크 필터를 이미 적용했으므로, "안 풀어본 문제"의
+    // 모수도 사용자가 고른 범위 안으로 자연히 좁혀진다.
+    const { data: answeredRows, error: answeredError } = await supabase
+      .from('session_answers')
+      .select('problem_id, quiz_sessions!inner(user_id)')
+      .eq('quiz_sessions.user_id', userId)
+    if (answeredError) throw answeredError
+    const answered = new Set((answeredRows ?? []).map((row: { problem_id: string }) => row.problem_id))
+
+    const unseen = shuffle(filtered.filter((p: Problem) => !answered.has(p.id)))
+    const reviewed = shuffle(filtered.filter((p: Problem) => answered.has(p.id)))
+    // 안 풀어본 문제가 모자라면 남는 자리를 이미 푼 문제로 채우고,
+    // 범위를 전부 풀었으면 자연히 전체에서 무작위로 출제된다.
+    const selected = [...unseen, ...reviewed].slice(0, count)
+
     const { data: session, error: sessionError } = await supabase
       .from('quiz_sessions')
       .insert({ user_id: userId, total: selected.length, status: 'in_progress', problem_ids: selected.map((p: any) => p.id) })
       .select('id')
       .single()
     if (sessionError) throw sessionError
-    return json({ success: true, sessionId: session.id, problems: selected })
+    return json({
+      success: true,
+      sessionId: session.id,
+      problems: selected,
+      // 이번 회차 구성과 남은 새 문제 수. 화면에서 "복습으로 다시 나온다"는 안내에 쓴다.
+      newCount: Math.min(unseen.length, count),
+      reviewCount: Math.max(0, selected.length - Math.min(unseen.length, count)),
+      remainingNew: Math.max(0, unseen.length - count),
+    })
   } catch (error) { console.error(error); return json({ error: 'internal_error' }, 500) }
 })
 
