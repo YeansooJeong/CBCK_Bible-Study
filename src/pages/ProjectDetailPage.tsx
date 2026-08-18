@@ -27,13 +27,13 @@ function downloadSampleCsv() {
 // 업로더가 헤더 행을 스스로 찾으므로, 확인용 표 없이 헤더 포함 CSV 하나만 받으면 된다.
 const AI_PROMPT = `단답형(short)과 성경문제(bible)를 섞어서 문제를 내줘. 각 강의별로 10~12문제씩 출제해주고, 단답형과 성경문제의 비율은 7:3 정도로 맞춰줘. 한 번에 올릴 수 있는 최대가 100문제라서 전체 합계가 100문제를 넘으면 안 돼. 강의 수가 많아 넘칠 것 같으면 강의를 나눠서 CSV를 여러 개로 따로 출력해줘.
 
-결과는 다른 설명 없이 CSV 하나로만 출력해줘. 첫 줄은 아래 헤더를 그대로 쓰고, 그 아래에 문제를 한 줄씩 적어줘. 값 안에 쉼표나 큰따옴표, 줄바꿈이 들어가면 그 값을 큰따옴표로 감싸줘.
+결과는 다른 설명 없이 CSV 하나로만 출력해줘. 첫 줄은 아래 헤더를 소문자 그대로, 한 글자도 바꾸지 말고 복사해서 써줘. 열을 빼거나 새로 만들지 말고 순서도 그대로 지켜줘(11개 열). 그 아래에 문제를 한 줄씩 적고, 값 안에 쉼표나 큰따옴표, 줄바꿈이 들어가면 그 값을 큰따옴표로 감싸줘.
 type,question,option1,option2,option3,option4,answer,keywords,ref_session,ref_kind,ref_detail
 
 각 열 작성 규칙:
 - type: short(단답형) / bible(성경문제) 중 하나. 객관식(mcq)은 출제하지 마
 - question: 문제 본문
-- option1~4: 항상 비워둬. 객관식에만 쓰는 칸이라 지금은 쓸 일이 없지만, 나중에 쓸 수 있으니 칸(쉼표)은 그대로 남겨줘
+- option1~4: 열은 반드시 그대로 두고 값만 비워둬(쉼표만 연달아 찍으면 돼). 객관식에만 쓰는 칸이라 지금은 채울 일이 없지만, 열을 빼면 안 돼
 - answer: short는 정답 문장, bible은 "책 장:절" 형식(예: 히브리서 11:1)
 - keywords: short 유형일 때만 정답으로 인정할 핵심 단어를 세미콜론(;)으로 구분해서 적고, bible은 비워둬. 일부만 맞혀도 그 비율만큼 부분 점수를 받아
 - ref_session: 그 문제가 나온 강의의 순번을 숫자만 적어줘. "9강"이 아니라 "9"처럼 숫자만. 차수와 무관하게 전체 강의 순번을 쓴다(2차 1강이 전체 9강이면 9)
@@ -62,13 +62,21 @@ const EXAMPLE_ROW_KEYS = new Set(
     .map((cells) => cells.join('\u0000')),
 )
 
-// 값이 없어야 할 자리(예: mcq가 아닌 유형의 보기 칸)까지 셀 개수는 항상 헤더와 맞아야 하며,
-// AI가 생성한 CSV에서 따옴표 누락 등으로 열이 밀리면 이 단계에서 바로 잡아낸다.
+// 셀 개수는 헤더와 맞아야 한다. 따옴표 누락 등으로 열이 밀리면 여기서 바로 잡아낸다.
+//
+// 다만 헤더 이름 자체는 관대하게 받는다. 생성형 AI가 컬럼명을 "Type"처럼 대문자로 쓰거나,
+// 값을 비워두라고 한 option1~4를 아예 빼거나, 없는 열(Source 등)을 덧붙이는 일이 잦다.
+// 필요한 열만 이름으로 찾고, 없는 열은 빈 값으로, 모르는 열은 무시한다.
+const normalizeHeader = (name: string) => name.trim().toLowerCase()
+
 function parseCsv(text: string) {
   const rows = parseCsvRows(text)
-  const headerIndex = rows.findIndex((cells) => REQUIRED_HEADERS.every((h) => cells.includes(h)))
+  const headerIndex = rows.findIndex((cells) => {
+    const names = cells.map(normalizeHeader)
+    return REQUIRED_HEADERS.every((h) => names.includes(h))
+  })
   if (headerIndex === -1) throw new Error('header')
-  const headers = rows[headerIndex]
+  const headers = rows[headerIndex].map(normalizeHeader)
   const dataRows = rows
     .map((cells, index) => ({ cells, rowNumber: index + 1 }))
     .slice(headerIndex + 1)
@@ -77,7 +85,10 @@ function parseCsv(text: string) {
   if (dataRows.length === 0) throw new Error('no_data')
   return dataRows.map(({ cells: r, rowNumber }) => {
     if (r.length !== headers.length) throw new Error(`row_columns:${rowNumber}`)
-    const value = (name: string) => r[headers.indexOf(name)] ?? ''
+    const value = (name: string) => {
+      const index = headers.indexOf(name)
+      return index === -1 ? '' : (r[index] ?? '')
+    }
     const type = value('type') as Problem['type']
     if (!VALID_PROBLEM_TYPES.includes(type)) throw new Error(`row_type:${rowNumber}`)
     if (!value('question').trim()) throw new Error(`row_question:${rowNumber}`)
