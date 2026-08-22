@@ -366,7 +366,15 @@ export const api = {
 
   listFlashcardProblems: (
     userToken: string,
-    payload: { projectId?: string; refCourse?: string; refSession?: string; bookmarkedOnly?: boolean; count?: number },
+    payload: {
+      projectId?: string
+      refCourse?: string
+      refSession?: string
+      bookmarkedOnly?: boolean
+      count?: number
+      // 보고 싶은 문제 유형. 비우면 전체 유형에서 보여준다.
+      types?: ProblemType[]
+    },
   ) => callFunction<{ problems: Problem[] }>('list-flashcard-problems', { userToken, body: payload }),
 
   createProblem: (

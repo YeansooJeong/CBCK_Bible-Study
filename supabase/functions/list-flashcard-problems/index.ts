@@ -3,18 +3,24 @@ import { corsHeaders } from '../_shared/cors.ts'
 import { requireUser } from '../_shared/userAuth.ts'
 import { fetchVisibleProblems } from '../_shared/visibleProblems.ts'
 
+const VALID_TYPES = ['mcq', 'short', 'bible']
+
 // 퀴즈와 달리 채점/기록이 없는 자가학습용 카드 목록. 정답을 그대로 내려준다.
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
   try {
     const userId = await requireUser(req, Deno.env.get('SESSION_JWT_SECRET')!)
     if (!userId) return json({ error: 'unauthorized' }, 401)
-    const { projectId, refCourse, refSession, bookmarkedOnly, count: requestedCount } = await req.json().catch(() => ({}))
+    const { projectId, refCourse, refSession, bookmarkedOnly, count: requestedCount, types } = await req.json().catch(() => ({}))
     const count = Math.min(Math.max(Number(requestedCount) || 10, 1), 50)
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
     const visible = await fetchVisibleProblems(supabase, userId, projectId, true)
+    // 보고 싶은 문제 유형 필터. 값이 없으면 전체 유형을 보여준다(구버전 프론트 호환).
+    const typeFilter = (Array.isArray(types) ? types : []).filter((t: unknown) => VALID_TYPES.includes(t as string))
     let filtered = visible.filter(
-      (p: any) => (!refCourse || p.ref_course === refCourse) && (!refSession || p.ref_session === refSession),
+      (p: any) => (!refCourse || p.ref_course === refCourse)
+        && (!refSession || p.ref_session === refSession)
+        && (!typeFilter.length || typeFilter.includes(p.type)),
     )
     if (bookmarkedOnly) {
       const { data: bookmarks, error: bookmarkError } = await supabase.from('problem_bookmarks').select('problem_id').eq('user_id', userId)

@@ -93,6 +93,7 @@ function StudentHomePage() {
   const [flashSession, setFlashSession] = useState('')
   const [flashBookmarkedOnly, setFlashBookmarkedOnly] = useState(false)
   const [flashCount, setFlashCount] = useState(10)
+  const [flashTypes, setFlashTypes] = useState<ProblemType[]>(allProblemTypes)
   const [flashScopes, setFlashScopes] = useState<Scope[]>([])
   const [flashCards, setFlashCards] = useState<Problem[]>([])
   const [flashIndex, setFlashIndex] = useState(0)
@@ -265,11 +266,18 @@ function StudentHomePage() {
         refSession: flashSession || undefined,
         bookmarkedOnly: flashBookmarkedOnly,
         count: flashCount,
+        types: flashTypes,
       })
-      if (!data.problems.length) { setFlashError('선택한 범위에 학습할 문제가 없습니다.'); return }
+      if (!data.problems.length) {
+        const typeNames = problemTypeOptions.filter((option) => flashTypes.includes(option.value)).map((option) => option.label).join('·')
+        setFlashError(flashTypes.length < allProblemTypes.length
+          ? `선택한 범위에 ${typeNames} 문제가 없습니다. 유형을 더 선택해 보세요.`
+          : '선택한 범위에 학습할 문제가 없습니다.')
+        return
+      }
       setFlashCards(data.problems); setFlashIndex(0); setFlashRevealed(false)
       setFlashKnown(new Set()); setFlashUnknown(new Set()); setFlashDone(false)
-    } catch { setFlashError('문제를 불러오지 못했습니다.') }
+    } catch (err) { setFlashError(describeApiError(err, '문제를 불러오지 못했습니다.')) }
     finally { setFlashLoading(false) }
   }
 
@@ -314,6 +322,11 @@ function StudentHomePage() {
   // 마지막 한 개는 끌 수 없게 버튼을 비활성화하므로 여기서 빈 배열이 될 일은 없다.
   function toggleType(value: ProblemType) {
     setSelectedTypes((current) => (current.includes(value) ? current.filter((type) => type !== value) : [...current, value]))
+  }
+
+  // 퀴즈와 마찬가지로 마지막 한 개는 끌 수 없게 버튼을 비활성화한다.
+  function toggleFlashType(value: ProblemType) {
+    setFlashTypes((current) => (current.includes(value) ? current.filter((type) => type !== value) : [...current, value]))
   }
 
   async function startQuiz() {
@@ -537,6 +550,10 @@ function StudentHomePage() {
       {flashError && <div className="notice error">{flashError}</div>}
       <label>학습 범위<select value={flashProject} onChange={(event) => { setFlashProject(event.target.value); setFlashSession('') }}><option value="">전체 문제</option>{projects.map((project) => <option key={project.id} value={project.id}>{project.title}</option>)}</select></label>
       {flashProject && (flashScopes[0]?.sessions.length ?? 0) > 0 && <label>회차<select value={flashSession} onChange={(event) => setFlashSession(event.target.value)}><option value="">전체 회차</option>{[...flashScopes[0].sessions].sort((a, b) => Number(a) - Number(b)).map((session) => <option key={session} value={session}>{session}강</option>)}</select></label>}
+      <label>문제 유형<div className="count-options type-options">{problemTypeOptions.map(({ value, label }) => {
+        const chosen = flashTypes.includes(value)
+        return <button type="button" key={value} className={chosen ? 'chosen' : ''} aria-pressed={chosen} disabled={chosen && flashTypes.length === 1} onClick={() => toggleFlashType(value)}>{label}</button>
+      })}</div></label>
       <label>카드 수<div className="count-options">{[5, 10, 20, 50].map((value) => <button type="button" className={flashCount === value ? 'chosen' : ''} onClick={() => setFlashCount(value)} key={value}>{value}장</button>)}</div></label>
       <button className="primary-button wide" disabled={flashLoading} onClick={startFlashcards}>{flashLoading ? '카드를 준비하는 중…' : `${flashCount}장 시작`} {!flashLoading && <Icon name="arrow" />}</button>
     </div> : flashDone ? <div className="quiz-result"><p className="eyebrow">학습 완료</p><h2 id="flash-title">전체 {flashCards.length}장 중 {flashKnown.size}장을 알고 계셨어요</h2><p>모르는 문제 {flashUnknown.size}장은 북마크에 담아 나중에 다시 볼 수 있어요.</p>
