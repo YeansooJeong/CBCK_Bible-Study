@@ -11,15 +11,18 @@ Deno.serve(async (req) => {
   try {
     const userId = await requireUser(req, Deno.env.get('SESSION_JWT_SECRET')!)
     if (!userId) return json({ error: 'unauthorized' }, 401)
-    const { projectId, refCourse, refSession, bookmarkedOnly, count: requestedCount, types } = await req.json().catch(() => ({}))
+    const body = await req.json().catch(() => ({}))
+    const { projectId, projectIds, refCourse, refSession, refSessions, bookmarkedOnly, count: requestedCount, types } = body
+    const projectFilter = toList(projectIds, projectId)
+    const sessionFilter = toList(refSessions, refSession)
     const count = Math.min(Math.max(Number(requestedCount) || 10, 1), 50)
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-    const visible = await fetchVisibleProblems(supabase, userId, projectId, true)
+    const visible = await fetchVisibleProblems(supabase, userId, projectFilter, true)
     // 보고 싶은 문제 유형 필터. 값이 없으면 전체 유형을 보여준다(구버전 프론트 호환).
     const typeFilter = (Array.isArray(types) ? types : []).filter((t: unknown) => VALID_TYPES.includes(t as string))
     let filtered = visible.filter(
       (p: any) => (!refCourse || p.ref_course === refCourse)
-        && (!refSession || p.ref_session === refSession)
+        && (!sessionFilter.length || sessionFilter.includes(String(p.ref_session ?? '')))
         && (!typeFilter.length || typeFilter.includes(p.type)),
     )
     if (bookmarkedOnly) {
@@ -32,5 +35,11 @@ Deno.serve(async (req) => {
     return json({ problems: shuffled })
   } catch (error) { console.error(error); return json({ error: 'internal_error' }, 500) }
 })
+
+// 다중 선택 값과 구버전 단수 값을 하나의 목록으로 모은다.
+function toList(many: unknown, one: unknown): string[] {
+  const values = Array.isArray(many) ? many : one != null && one !== '' ? [one] : []
+  return values.map((v) => String(v)).filter(Boolean)
+}
 
 function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }) }

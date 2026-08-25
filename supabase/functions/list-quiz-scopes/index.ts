@@ -10,10 +10,12 @@ Deno.serve(async (req) => {
     if (!userId) return json({ error: 'unauthorized' }, 401)
 
     const url = new URL(req.url)
-    const projectId = url.searchParams.get('projectId') || undefined
+    // 과목을 여러 개 고를 수 있으므로 쉼표로 구분해 받는다. projectId는 구버전 호환용.
+    const projectIds = (url.searchParams.get('projectIds') || url.searchParams.get('projectId') || '')
+      .split(',').map((v) => v.trim()).filter(Boolean)
 
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!)
-    const visible = await fetchVisibleProblems(supabase, userId, projectId)
+    const visible = await fetchVisibleProblems(supabase, userId, projectIds)
 
     const courseMap = new Map<string, Set<string>>()
     for (const p of visible as any[]) {

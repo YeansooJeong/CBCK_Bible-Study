@@ -296,9 +296,10 @@ export const api = {
   startQuizSession: (
     userToken: string,
     payload: {
-      projectId?: string
+      // 과목·회차는 여러 개를 고를 수 있다. 비우면 전체가 대상이다.
+      projectIds?: string[]
+      refSessions?: string[]
       refCourse?: string
-      refSession?: string
       count?: number
       bookmarkedOnly?: boolean
       // 출제할 문제 유형. 비우면 전체 유형에서 출제한다.
@@ -314,9 +315,9 @@ export const api = {
     remainingNew?: number
   }>('start-quiz-session', { userToken, body: payload }),
 
-  listQuizScopes: (userToken: string, projectId?: string) =>
+  listQuizScopes: (userToken: string, projectIds?: string[]) =>
     callFunction<{ courses: Array<{ course: string; sessions: string[] }> }>(
-      `list-quiz-scopes${projectId ? `?projectId=${projectId}` : ''}`,
+      `list-quiz-scopes${projectIds?.length ? `?projectIds=${projectIds.join(',')}` : ''}`,
       { userToken, method: 'GET' },
     ),
 
@@ -367,9 +368,10 @@ export const api = {
   listFlashcardProblems: (
     userToken: string,
     payload: {
-      projectId?: string
+      // 과목·회차는 여러 개를 고를 수 있다. 비우면 전체가 대상이다.
+      projectIds?: string[]
+      refSessions?: string[]
       refCourse?: string
-      refSession?: string
       bookmarkedOnly?: boolean
       count?: number
       // 보고 싶은 문제 유형. 비우면 전체 유형에서 보여준다.
