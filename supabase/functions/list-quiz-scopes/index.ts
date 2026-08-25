@@ -29,7 +29,17 @@ Deno.serve(async (req) => {
       sessions: Array.from(sessions),
     }))
 
-    return json({ courses })
+    // 회차를 과목별로 묶어 내려준다. 회차 번호는 과목이 달라도 겹칠 수 있어
+    // 화면에서도 필터에서도 "과목 + 회차" 쌍으로 다뤄야 한다.
+    const byProject: Record<string, string[]> = {}
+    for (const p of visible as Array<{ project_id?: string; ref_session?: string | null }>) {
+      if (!p.project_id || !p.ref_session) continue
+      if (!byProject[p.project_id]) byProject[p.project_id] = []
+      if (!byProject[p.project_id].includes(String(p.ref_session))) byProject[p.project_id].push(String(p.ref_session))
+    }
+    for (const key of Object.keys(byProject)) byProject[key].sort((a, b) => Number(a) - Number(b))
+
+    return json({ courses, byProject })
   } catch (error) { console.error(error); return json({ error: 'internal_error' }, 500) }
 })
 

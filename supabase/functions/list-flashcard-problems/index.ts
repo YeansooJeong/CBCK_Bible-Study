@@ -12,7 +12,7 @@ Deno.serve(async (req) => {
     const userId = await requireUser(req, Deno.env.get('SESSION_JWT_SECRET')!)
     if (!userId) return json({ error: 'unauthorized' }, 401)
     const body = await req.json().catch(() => ({}))
-    const { projectId, projectIds, refCourse, refSession, refSessions, bookmarkedOnly, count: requestedCount, types } = body
+    const { projectId, projectIds, refCourse, refSession, refSessions, sessionsByProject, bookmarkedOnly, count: requestedCount, types } = body
     const projectFilter = toList(projectIds, projectId)
     const sessionFilter = toList(refSessions, refSession)
     const count = Math.min(Math.max(Number(requestedCount) || 10, 1), 50)
@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
     const typeFilter = (Array.isArray(types) ? types : []).filter((t: unknown) => VALID_TYPES.includes(t as string))
     let filtered = visible.filter(
       (p: any) => (!refCourse || p.ref_course === refCourse)
-        && (!sessionFilter.length || sessionFilter.includes(String(p.ref_session ?? '')))
+        && matchesSession(p, sessionsByProject, sessionFilter)
         && (!typeFilter.length || typeFilter.includes(p.type)),
     )
     if (bookmarkedOnly) {
@@ -35,6 +35,18 @@ Deno.serve(async (req) => {
     return json({ problems: shuffled })
   } catch (error) { console.error(error); return json({ error: 'internal_error' }, 500) }
 })
+
+// 회차는 과목마다 따로 고른다. 어떤 과목에 고른 회차가 없으면 그 과목은 전체 회차가 대상이다.
+// refSessions(과목 구분 없는 목록)는 구버전 프론트 호환용이다.
+function matchesSession(problem: { project_id?: string; ref_session?: string | null }, byProject: unknown, flat: string[]): boolean {
+  const session = String(problem.ref_session ?? '')
+  if (byProject && typeof byProject === 'object' && !Array.isArray(byProject)) {
+    const chosen = (byProject as Record<string, unknown>)[problem.project_id ?? '']
+    if (Array.isArray(chosen) && chosen.length) return chosen.map(String).includes(session)
+    return true
+  }
+  return !flat.length || flat.includes(session)
+}
 
 // 다중 선택 값과 구버전 단수 값을 하나의 목록으로 모은다.
 function toList(many: unknown, one: unknown): string[] {

@@ -298,7 +298,8 @@ export const api = {
     payload: {
       // 과목·회차는 여러 개를 고를 수 있다. 비우면 전체가 대상이다.
       projectIds?: string[]
-      refSessions?: string[]
+      // 회차는 과목마다 따로 고른다. 어떤 과목에 고른 회차가 없으면 그 과목은 전체 회차다.
+      sessionsByProject?: Record<string, string[]>
       refCourse?: string
       count?: number
       bookmarkedOnly?: boolean
@@ -316,7 +317,7 @@ export const api = {
   }>('start-quiz-session', { userToken, body: payload }),
 
   listQuizScopes: (userToken: string, projectIds?: string[]) =>
-    callFunction<{ courses: Array<{ course: string; sessions: string[] }> }>(
+    callFunction<{ courses: Array<{ course: string; sessions: string[] }>; byProject?: Record<string, string[]> }>(
       `list-quiz-scopes${projectIds?.length ? `?projectIds=${projectIds.join(',')}` : ''}`,
       { userToken, method: 'GET' },
     ),
@@ -370,7 +371,7 @@ export const api = {
     payload: {
       // 과목·회차는 여러 개를 고를 수 있다. 비우면 전체가 대상이다.
       projectIds?: string[]
-      refSessions?: string[]
+      sessionsByProject?: Record<string, string[]>
       refCourse?: string
       bookmarkedOnly?: boolean
       count?: number

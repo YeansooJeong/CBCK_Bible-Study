@@ -10,3 +10,10 @@ export function formatBibleAnswer(raw: string): string {
   if (colon) return `${colon[1].trim()} ${colon[2]}장 ${colon[3]}절`
   return raw
 }
+
+/** 설정 화면에 접힌 상태로 보여줄 요약 문구. 고른 게 없으면 '전체'다. */
+export function summarize(labels: string[], emptyText: string): string {
+  if (!labels.length) return emptyText
+  if (labels.length === 1) return labels[0]
+  return `${labels[0]} 외 ${labels.length - 1}개`
+}

@@ -3,8 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import StudentShell, { Icon } from '../components/StudentShell'
 import { api, describeApiError, type Problem, type ProblemComment, type ProblemType, type Project } from '../lib/api'
 import { studentSession, type StudentUser } from '../lib/session'
-import { formatBibleAnswer } from '../lib/format'
+import { formatBibleAnswer, summarize } from '../lib/format'
 import { NewContentNotice } from '../components/NewContentNotice'
+import { CheckRow, ScopeRow, ScopeSheet } from '../components/ScopeSheet'
 
 type HistoryItem = { id: string; started_at: string; total: number; correct: number }
 type WeakArea = { refCourse: string; refSession: string; total: number; correct: number; rate: number }
@@ -28,14 +29,7 @@ function formatReference(problem: Problem): string {
     .filter(Boolean)
     .join(' · ') || '등록된 레퍼런스가 없습니다.'
 }
-type Scope = { course: string; sessions: string[] }
 
-// 고른 과목들의 회차를 합쳐 숫자 순으로 돌려준다.
-function sessionOptions(scopes: Scope[]): string[] {
-  const all = new Set<string>()
-  for (const scope of scopes) for (const session of scope.sessions) if (session) all.add(session)
-  return Array.from(all).sort((a, b) => Number(a) - Number(b))
-}
 
 function sameLocalDay(a: Date, b: Date) { return a.toDateString() === b.toDateString() }
 
@@ -60,8 +54,11 @@ function StudentHomePage() {
   const [selectedProjects, setSelectedProjects] = useState<string[]>([])
   const [count, setCount] = useState(10)
   const [selectedTypes, setSelectedTypes] = useState<ProblemType[]>(allProblemTypes)
-  const [scopes, setScopes] = useState<Scope[]>([])
-  const [selectedSessions, setSelectedSessions] = useState<string[]>([])
+  const [sessionsByProject, setSessionsByProject] = useState<Record<string, string[]>>({})
+  // 회차는 과목마다 따로 고른다. 회차 번호는 과목이 달라도 겹칠 수 있어서다.
+  const [quizSessions, setQuizSessions] = useState<Record<string, string[]>>({})
+  // 같은 모달 안에서 설정 <-> 선택 화면을 오간다.
+  const [quizStep, setQuizStep] = useState<'main' | 'projects' | 'sessions'>('main')
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [problems, setProblems] = useState<Problem[]>([])
   const [questionIndex, setQuestionIndex] = useState(0)
@@ -98,11 +95,12 @@ function StudentHomePage() {
 
   const [flashOpen, setFlashOpen] = useState(false)
   const [flashProjects, setFlashProjects] = useState<string[]>([])
-  const [flashSessions, setFlashSessions] = useState<string[]>([])
+  const [flashSessionMap, setFlashSessionMap] = useState<Record<string, string[]>>({})
+  const [flashStep, setFlashStep] = useState<'main' | 'projects' | 'sessions'>('main')
   const [flashBookmarkedOnly, setFlashBookmarkedOnly] = useState(false)
   const [flashCount, setFlashCount] = useState(10)
   const [flashTypes, setFlashTypes] = useState<ProblemType[]>(allProblemTypes)
-  const [flashScopes, setFlashScopes] = useState<Scope[]>([])
+  const [flashScopeMap, setFlashScopeMap] = useState<Record<string, string[]>>({})
   const [flashCards, setFlashCards] = useState<Problem[]>([])
   const [flashIndex, setFlashIndex] = useState(0)
   const [flashRevealed, setFlashRevealed] = useState(false)
@@ -206,12 +204,12 @@ function StudentHomePage() {
   const flashCard = flashCards[flashIndex]
 
   function openQuiz(projectId = '') {
-    setSelectedProjects(projectId ? [projectId] : []); setSelectedSessions([]); setBookmarkedOnly(false)
+    setSelectedProjects(projectId ? [projectId] : []); setQuizSessions({}); setQuizStep('main'); setBookmarkedOnly(false)
     setQuizOpen(true); setSessionId(null); setProblems([]); setSummary(null); setError('')
   }
 
   function openBookmarkedQuiz() {
-    setSelectedProjects([]); setSelectedSessions([]); setBookmarkedOnly(true); setQuizOpen(true); setSessionId(null); setProblems([]); setSummary(null); setError('')
+    setSelectedProjects([]); setQuizSessions({}); setQuizStep('main'); setBookmarkedOnly(true); setQuizOpen(true); setSessionId(null); setProblems([]); setSummary(null); setError('')
   }
 
   async function toggleBookmark() {
@@ -248,12 +246,12 @@ function StudentHomePage() {
   }
 
   function openFlashcards(projectId = '') {
-    setFlashProjects(projectId ? [projectId] : []); setFlashSessions([]); setFlashBookmarkedOnly(false)
+    setFlashProjects(projectId ? [projectId] : []); setFlashSessionMap({}); setFlashStep('main'); setFlashBookmarkedOnly(false)
     resetFlashcardState(); setFlashOpen(true)
   }
 
   function openBookmarkedFlashcards() {
-    setFlashProjects([]); setFlashSessions([]); setFlashBookmarkedOnly(true)
+    setFlashProjects([]); setFlashSessionMap({}); setFlashStep('main'); setFlashBookmarkedOnly(true)
     resetFlashcardState(); setFlashOpen(true)
   }
 
@@ -262,7 +260,9 @@ function StudentHomePage() {
   useEffect(() => {
     if (!flashOpen || flashCards.length) return
     const token = studentSession.get(); if (!token) return
-    api.listQuizScopes(token, flashProjects).then((data) => setFlashScopes(data.courses)).catch(() => setFlashScopes([]))
+    api.listQuizScopes(token, flashProjects)
+      .then((data) => setFlashScopeMap(data.byProject ?? {}))
+      .catch(() => setFlashScopeMap({}))
   }, [flashOpen, flashCards.length, flashProjects])
 
   async function startFlashcards() {
@@ -271,7 +271,7 @@ function StudentHomePage() {
     try {
       const data = await api.listFlashcardProblems(token, {
         projectIds: flashProjects,
-        refSessions: flashSessions,
+        sessionsByProject: flashSessionMap,
         bookmarkedOnly: flashBookmarkedOnly,
         count: flashCount,
         types: flashTypes,
@@ -323,13 +323,32 @@ function StudentHomePage() {
     if (!quizOpen || sessionId) return
     const token = studentSession.get(); if (!token) return
     api.listQuizScopes(token, selectedProjects)
-      .then((data) => setScopes(data.courses))
-      .catch(() => setScopes([]))
+      .then((data) => setSessionsByProject(data.byProject ?? {}))
+      .catch(() => setSessionsByProject({}))
   }, [quizOpen, sessionId, selectedProjects])
 
-  // 과목·회차 칩 토글. 빈 배열이면 '전체'이므로 마지막 하나를 꺼도 문제가 없다.
+  // 과목·회차 선택 토글. 빈 값이면 '전체'이므로 마지막 하나를 꺼도 막히지 않는다.
   function toggleIn(list: string[], value: string) {
     return list.includes(value) ? list.filter((item) => item !== value) : [...list, value]
+  }
+
+  // 과목 선택을 바꾸면, 더 이상 고르지 않은 과목의 회차 선택은 버린다.
+  function pruneSessions(map: Record<string, string[]>, projectIds: string[]) {
+    if (!projectIds.length) return {}
+    const next: Record<string, string[]> = {}
+    for (const id of projectIds) if (map[id]?.length) next[id] = map[id]
+    return next
+  }
+
+  function toggleSession(map: Record<string, string[]>, projectId: string, session: string) {
+    const next = { ...map, [projectId]: toggleIn(map[projectId] ?? [], session) }
+    if (!next[projectId].length) delete next[projectId]
+    return next
+  }
+
+  // 고른 회차를 "9, 10 외 2개"처럼 요약한다. 과목 구분 없이 번호만 모아 보여준다.
+  function sessionLabels(map: Record<string, string[]>): string[] {
+    return Object.values(map).flat().sort((a, b) => Number(a) - Number(b)).map((s) => `${s}강`)
   }
 
   // 마지막 한 개는 끌 수 없게 버튼을 비활성화하므로 여기서 빈 배열이 될 일은 없다.
@@ -348,7 +367,7 @@ function StudentHomePage() {
     try {
       const data = await api.startQuizSession(token, {
         projectIds: selectedProjects,
-        refSessions: selectedSessions,
+        sessionsByProject: quizSessions,
         bookmarkedOnly,
         count,
         types: selectedTypes,
@@ -514,29 +533,36 @@ function StudentHomePage() {
   </div>}
 
   {quizOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && closeQuiz()}><section className="quiz-modal" role="dialog" aria-modal="true" aria-labelledby="quiz-title"><button className="modal-close" aria-label="닫기" onClick={closeQuiz}>×</button>
-    {!sessionId ? <div className="quiz-setup"><span className="modal-bookmark"/><p className="eyebrow">맞춤 학습</p><h2 id="quiz-title">오늘은 어떤 문제를 복습할까요?</h2><p>모든 공유 문제에서 골고루 출제하거나, 원하는 과목과 회차를 선택할 수 있어요.</p>
+    {!sessionId ? <div className="quiz-setup">
+    {quizStep === 'projects' ? <ScopeSheet title="학습 범위 선택" hint="고르지 않으면 전체 과목에서 출제합니다." selectedCount={selectedProjects.length} onBack={() => setQuizStep('main')}>
+      {projects.map((project) => <CheckRow key={project.id} checked={selectedProjects.includes(project.id)} label={project.title} onToggle={() => setSelectedProjects((current) => {
+        const next = toggleIn(current, project.id)
+        setQuizSessions((map) => pruneSessions(map, next))
+        return next
+      })} />)}
+      {!projects.length && <p className="scope-empty">아직 개설된 과목이 없습니다.</p>}
+    </ScopeSheet> : quizStep === 'sessions' ? <ScopeSheet title="회차 선택" hint="고르지 않은 과목은 전체 회차가 대상입니다." selectedCount={sessionLabels(quizSessions).length} onBack={() => setQuizStep('main')}>
+      {selectedProjects.map((projectId) => {
+        const project = projects.find((p) => p.id === projectId)
+        const sessions = sessionsByProject[projectId] ?? []
+        if (!sessions.length) return null
+        return <div className="scope-group" key={projectId}>
+          <h3>{project?.title ?? '과목'}</h3>
+          {sessions.map((session) => <CheckRow key={session} checked={(quizSessions[projectId] ?? []).includes(session)} label={`${session}강`} onToggle={() => setQuizSessions((map) => toggleSession(map, projectId, session))} />)}
+        </div>
+      })}
+      {!selectedProjects.some((id) => (sessionsByProject[id] ?? []).length) && <p className="scope-empty">선택한 과목에 등록된 회차가 없습니다.</p>}
+    </ScopeSheet> : <><span className="modal-bookmark"/><p className="eyebrow">맞춤 학습</p><h2 id="quiz-title">오늘은 어떤 문제를 복습할까요?</h2><p>모든 공유 문제에서 골고루 출제하거나, 원하는 과목과 회차를 선택할 수 있어요.</p>
       {error && <div className="notice error">{error}</div>}
-      <label>학습 범위<div className="count-options scope-options">
-        <button type="button" className={selectedProjects.length === 0 ? 'chosen' : ''} aria-pressed={selectedProjects.length === 0} onClick={() => { setSelectedProjects([]); setSelectedSessions([]) }}>전체</button>
-        {projects.map((project) => {
-          const chosen = selectedProjects.includes(project.id)
-          return <button type="button" key={project.id} className={chosen ? 'chosen' : ''} aria-pressed={chosen} onClick={() => { setSelectedProjects((current) => toggleIn(current, project.id)); setSelectedSessions([]) }}>{project.title}</button>
-        })}
-      </div></label>
-      {selectedProjects.length > 0 && sessionOptions(scopes).length > 0 && <label>회차<div className="count-options scope-options">
-        <button type="button" className={selectedSessions.length === 0 ? 'chosen' : ''} aria-pressed={selectedSessions.length === 0} onClick={() => setSelectedSessions([])}>전체</button>
-        {sessionOptions(scopes).map((session) => {
-          const chosen = selectedSessions.includes(session)
-          return <button type="button" key={session} className={chosen ? 'chosen' : ''} aria-pressed={chosen} onClick={() => setSelectedSessions((current) => toggleIn(current, session))}>{session}강</button>
-        })}
-      </div></label>}
+      <ScopeRow label="학습 범위" value={summarize(selectedProjects.map((id) => projects.find((p) => p.id === id)?.title ?? '알 수 없는 과목'), '전체 과목')} onOpen={() => setQuizStep('projects')} />
+      {selectedProjects.length > 0 && <ScopeRow label="회차" value={summarize(sessionLabels(quizSessions), '전체 회차')} onOpen={() => setQuizStep('sessions')} />}
       <label>문제 유형<div className="count-options type-options">{problemTypeOptions.map(({ value, label }) => {
         const chosen = selectedTypes.includes(value)
         return <button type="button" key={value} className={chosen ? 'chosen' : ''} aria-pressed={chosen} disabled={chosen && selectedTypes.length === 1} onClick={() => toggleType(value)}>{label}</button>
       })}</div></label>
       <label>문제 수<div className="count-options">{[5, 10, 20, 50].map((value) => <button type="button" className={count === value ? 'chosen' : ''} onClick={() => setCount(value)} key={value}>{value}문제</button>)}</div></label>
       <button className="primary-button wide" disabled={submitting} onClick={startQuiz}>{submitting ? '문제를 준비하는 중…' : `${count}문제 학습 시작`} {!submitting && <Icon name="arrow"/>}</button>
-    </div> : summary ? <div className="quiz-result"><div className="result-ring" style={{ '--score': `${summary.score}%` } as React.CSSProperties}><strong>{summary.score}</strong><span>점</span></div><p className="eyebrow">학습 완료</p><h2 id="quiz-title">오늘의 복습을 마쳤어요</h2><p>{summary.total}문제 중 <strong>{summary.correct}문제</strong>를 맞혔습니다.{(summary.partial ?? 0) > 0 && <> 부분 정답 <strong>{summary.partial}문제</strong>를 더해 <strong>{summary.earned}점</strong>을 얻었어요.</>}<br/>틀린 문제의 레퍼런스를 다시 확인해 보세요.</p>
+    </>}</div> : summary ? <div className="quiz-result"><div className="result-ring" style={{ '--score': `${summary.score}%` } as React.CSSProperties}><strong>{summary.score}</strong><span>점</span></div><p className="eyebrow">학습 완료</p><h2 id="quiz-title">오늘의 복습을 마쳤어요</h2><p>{summary.total}문제 중 <strong>{summary.correct}문제</strong>를 맞혔습니다.{(summary.partial ?? 0) > 0 && <> 부분 정답 <strong>{summary.partial}문제</strong>를 더해 <strong>{summary.earned}점</strong>을 얻었어요.</>}<br/>틀린 문제의 레퍼런스를 다시 확인해 보세요.</p>
       {summary.weakAreas.some((area) => area.rate < 100) && <div className="weak-areas">
         <p className="eyebrow">취약 구간</p>
         <ul>{summary.weakAreas.filter((area) => area.rate < 100).slice(0, 5).map((area) => <li key={`${area.refCourse}::${area.refSession}`}><span>{area.refCourse}{area.refSession ? ` · ${area.refSession}` : ''}</span><strong>{area.correct}/{area.total} ({area.rate}%)</strong></li>)}</ul>
@@ -571,29 +597,36 @@ function StudentHomePage() {
   </section></div>}
 
   {flashOpen && <div className="modal-backdrop" onMouseDown={(event) => event.target === event.currentTarget && closeFlashcards()}><section className="quiz-modal" role="dialog" aria-modal="true" aria-labelledby="flash-title"><button className="modal-close" aria-label="닫기" onClick={closeFlashcards}>×</button>
-    {!flashCards.length ? <div className="quiz-setup"><p className="eyebrow">플래시카드</p><h2 id="flash-title">가볍게 훑어볼까요?</h2><p>채점 없이 문제를 넘겨보며 아는지 모르는지만 표시하는 학습 모드예요.</p>
+    {!flashCards.length ? <div className="quiz-setup">
+    {flashStep === 'projects' ? <ScopeSheet title="학습 범위 선택" hint="고르지 않으면 전체 과목에서 학습합니다." selectedCount={flashProjects.length} onBack={() => setFlashStep('main')}>
+      {projects.map((project) => <CheckRow key={project.id} checked={flashProjects.includes(project.id)} label={project.title} onToggle={() => setFlashProjects((current) => {
+        const next = toggleIn(current, project.id)
+        setFlashSessionMap((map) => pruneSessions(map, next))
+        return next
+      })} />)}
+      {!projects.length && <p className="scope-empty">아직 개설된 과목이 없습니다.</p>}
+    </ScopeSheet> : flashStep === 'sessions' ? <ScopeSheet title="회차 선택" hint="고르지 않은 과목은 전체 회차가 대상입니다." selectedCount={sessionLabels(flashSessionMap).length} onBack={() => setFlashStep('main')}>
+      {flashProjects.map((projectId) => {
+        const project = projects.find((p) => p.id === projectId)
+        const sessions = flashScopeMap[projectId] ?? []
+        if (!sessions.length) return null
+        return <div className="scope-group" key={projectId}>
+          <h3>{project?.title ?? '과목'}</h3>
+          {sessions.map((session) => <CheckRow key={session} checked={(flashSessionMap[projectId] ?? []).includes(session)} label={`${session}강`} onToggle={() => setFlashSessionMap((map) => toggleSession(map, projectId, session))} />)}
+        </div>
+      })}
+      {!flashProjects.some((id) => (flashScopeMap[id] ?? []).length) && <p className="scope-empty">선택한 과목에 등록된 회차가 없습니다.</p>}
+    </ScopeSheet> : <><p className="eyebrow">플래시카드</p><h2 id="flash-title">가볍게 훑어볼까요?</h2><p>채점 없이 문제를 넘겨보며 아는지 모르는지만 표시하는 학습 모드예요.</p>
       {flashError && <div className="notice error">{flashError}</div>}
-      <label>학습 범위<div className="count-options scope-options">
-        <button type="button" className={flashProjects.length === 0 ? 'chosen' : ''} aria-pressed={flashProjects.length === 0} onClick={() => { setFlashProjects([]); setFlashSessions([]) }}>전체</button>
-        {projects.map((project) => {
-          const chosen = flashProjects.includes(project.id)
-          return <button type="button" key={project.id} className={chosen ? 'chosen' : ''} aria-pressed={chosen} onClick={() => { setFlashProjects((current) => toggleIn(current, project.id)); setFlashSessions([]) }}>{project.title}</button>
-        })}
-      </div></label>
-      {flashProjects.length > 0 && sessionOptions(flashScopes).length > 0 && <label>회차<div className="count-options scope-options">
-        <button type="button" className={flashSessions.length === 0 ? 'chosen' : ''} aria-pressed={flashSessions.length === 0} onClick={() => setFlashSessions([])}>전체</button>
-        {sessionOptions(flashScopes).map((session) => {
-          const chosen = flashSessions.includes(session)
-          return <button type="button" key={session} className={chosen ? 'chosen' : ''} aria-pressed={chosen} onClick={() => setFlashSessions((current) => toggleIn(current, session))}>{session}강</button>
-        })}
-      </div></label>}
+      <ScopeRow label="학습 범위" value={summarize(flashProjects.map((id) => projects.find((p) => p.id === id)?.title ?? '알 수 없는 과목'), '전체 과목')} onOpen={() => setFlashStep('projects')} />
+      {flashProjects.length > 0 && <ScopeRow label="회차" value={summarize(sessionLabels(flashSessionMap), '전체 회차')} onOpen={() => setFlashStep('sessions')} />}
       <label>문제 유형<div className="count-options type-options">{problemTypeOptions.map(({ value, label }) => {
         const chosen = flashTypes.includes(value)
         return <button type="button" key={value} className={chosen ? 'chosen' : ''} aria-pressed={chosen} disabled={chosen && flashTypes.length === 1} onClick={() => toggleFlashType(value)}>{label}</button>
       })}</div></label>
       <label>카드 수<div className="count-options">{[5, 10, 20, 50].map((value) => <button type="button" className={flashCount === value ? 'chosen' : ''} onClick={() => setFlashCount(value)} key={value}>{value}장</button>)}</div></label>
       <button className="primary-button wide" disabled={flashLoading} onClick={startFlashcards}>{flashLoading ? '카드를 준비하는 중…' : `${flashCount}장 시작`} {!flashLoading && <Icon name="arrow" />}</button>
-    </div> : flashDone ? <div className="quiz-result"><p className="eyebrow">학습 완료</p><h2 id="flash-title">전체 {flashCards.length}장 중 {flashKnown.size}장을 알고 계셨어요</h2><p>모르는 문제 {flashUnknown.size}장은 북마크에 담아 나중에 다시 볼 수 있어요.</p>
+    </>}</div> : flashDone ? <div className="quiz-result"><p className="eyebrow">학습 완료</p><h2 id="flash-title">전체 {flashCards.length}장 중 {flashKnown.size}장을 알고 계셨어요</h2><p>모르는 문제 {flashUnknown.size}장은 북마크에 담아 나중에 다시 볼 수 있어요.</p>
       {flashBookmarkMessage && <div className="notice">{flashBookmarkMessage}</div>}
       <div className="result-actions">
         {flashUnknown.size > 0 && <button className="secondary-button" onClick={restartUnknownFlashcards}>모르는 문제만 다시보기</button>}
